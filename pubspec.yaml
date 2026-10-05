@@ -1,0 +1,23 @@
+name: upitrack
+description: Tracks payments from every UPI app by reading bank SMS on the device.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  intl: ^0.20.2
+  path: ^1.9.0
+  permission_handler: ^12.0.0
+  sqflite: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
