@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 
 import 'data/db.dart';
 import 'data/repository.dart';
+import 'data/shortcut_inbox.dart';
 import 'data/sms_source.dart';
 import 'screens/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final db = await AppDb.open();
-  runApp(UpiTrackApp(repository: TxnRepository(db, SmsSource())));
+  runApp(UpiTrackApp(
+    repository: TxnRepository(db, SmsSource(), ShortcutInbox()),
+  ));
 }
 
 class UpiTrackApp extends StatelessWidget {

@@ -69,7 +69,10 @@ class _TxnSheetState extends State<_TxnSheet> {
             const SizedBox(height: 4),
             Text(t.counterparty, style: text.titleMedium),
             const SizedBox(height: 16),
-            _Detail('Date', DateFormat('d MMM y, h:mm a').format(t.time)),
+            _Detail(
+                'Date',
+                DateFormat(t.hasTime ? 'd MMM y, h:mm a' : 'd MMM y')
+                    .format(t.time)),
             if (t.bank != null) _Detail('Bank', t.bank!),
             if (t.account != null) _Detail('Account', '•••${t.account}'),
             if (t.ref != null) _Detail('UPI ref', t.ref!),

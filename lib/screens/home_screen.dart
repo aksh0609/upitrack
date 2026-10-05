@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -11,9 +13,12 @@ import '../widgets/category_bars.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/txn_tile.dart';
 import 'add_txn_sheet.dart';
+import 'import_flow.dart';
+import 'iphone_setup_screen.dart';
 import 'txn_sheet.dart';
 
-enum _Access { checking, granted, denied, permanentlyDenied }
+/// Android: SMS permission state. iPhone: SMS come in via Shortcuts instead.
+enum _Access { checking, granted, denied, permanentlyDenied, iphone }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.repository});
@@ -30,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Txn> _txns = const [];
   bool _syncing = false;
   bool _upiOnly = false;
+  int _shortcutCount = 0;
 
   bool get _isCurrentMonth {
     final now = DateTime.now();
@@ -57,6 +63,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _checkAccess() async {
+    if (Platform.isIOS) {
+      if (mounted) setState(() => _access = _Access.iphone);
+      await _sync();
+      return;
+    }
     final status = await Permission.sms.status;
     if (!mounted) return;
     setState(() => _access = _accessFrom(status));
@@ -81,17 +92,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _sync() async {
-    if (_access == _Access.granted && !_syncing) {
+    final canSync = _access == _Access.granted || _access == _Access.iphone;
+    if (canSync && !_syncing) {
       setState(() => _syncing = true);
       try {
-        final added = await widget.repository.sync();
+        final added = _access == _Access.iphone
+            ? await widget.repository.syncShortcutInbox()
+            : await widget.repository.syncSms();
         if (mounted && added > 0) {
           _snack(added == 1 ? '1 new transaction' : '$added new transactions');
         }
       } on PlatformException catch (e) {
         _snack('Could not read SMS: ${e.message ?? e.code}');
+      } on FileSystemException catch (e) {
+        _snack('Could not read shortcut messages: ${e.message}');
       } finally {
         if (mounted) setState(() => _syncing = false);
+      }
+      if (_access == _Access.iphone) {
+        final count = await widget.repository.shortcutMessageCount();
+        if (mounted) setState(() => _shortcutCount = count);
       }
     }
     await _load();
@@ -118,6 +138,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _openTxn(Txn t) async {
     final changed = await showTxnSheet(context, t, widget.repository);
     if (changed == true) await _load();
+  }
+
+  Future<void> _importStatement() async {
+    final added = await importStatement(context, widget.repository);
+    if (added) await _load();
+  }
+
+  Future<void> _openIphoneSetup() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => IphoneSetupScreen(messagesReceived: _shortcutCount),
+    ));
   }
 
   Future<void> _addManual() async {
@@ -150,6 +181,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               icon: const Icon(Icons.refresh),
               onPressed: _sync,
             ),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'import') _importStatement();
+              if (v == 'iphone') _openIphoneSetup();
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'import',
+                child: ListTile(
+                  leading: Icon(Icons.upload_file),
+                  title: Text('Import statement'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              if (_access == _Access.iphone)
+                const PopupMenuItem(
+                  value: 'iphone',
+                  child: ListTile(
+                    leading: Icon(Icons.phone_iphone),
+                    title: Text('iPhone auto-tracking'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -169,6 +225,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 permanentlyDenied: _access == _Access.permanentlyDenied,
                 onPressed: _requestAccess,
               ),
+            if (_access == _Access.iphone && _shortcutCount == 0)
+              _IphoneCard(onSetup: _openIphoneSetup, onImport: _importStatement),
             _MonthSwitcher(
               month: _month,
               canGoForward: !_isCurrentMonth,
@@ -195,7 +253,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 4),
             if (visible.isEmpty)
-              _EmptyState(waitingForAccess: _access != _Access.granted)
+              _EmptyState(
+                  waitingForAccess: _access != _Access.granted &&
+                      !(_access == _Access.iphone && _shortcutCount > 0))
             else
               ..._groupedByDay(visible, text),
           ],
@@ -311,6 +371,56 @@ class _PermissionCard extends StatelessWidget {
   }
 }
 
+class _IphoneCard extends StatelessWidget {
+  const _IphoneCard({required this.onSetup, required this.onImport});
+
+  final VoidCallback onSetup;
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.phone_iphone),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Track UPI payments automatically',
+                      style: text.titleMedium),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'iPhones don\'t let apps read SMS. Set up a one-time Shortcuts '
+              'automation (about a minute) and every bank SMS will be passed '
+              'to this app. Import a statement to fill in older months.',
+              style: text.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton(onPressed: onSetup, child: const Text('Set up')),
+                OutlinedButton(
+                    onPressed: onImport, child: const Text('Import statement')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.waitingForAccess});
 
@@ -327,7 +437,9 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             waitingForAccess
-                ? 'Allow SMS access, or tap Add to log a payment yourself.'
+                ? (Platform.isIOS
+                    ? 'Set up auto-tracking or import a statement, or tap Add.'
+                    : 'Allow SMS access, import a statement, or tap Add.')
                 : 'No transactions this month.',
             textAlign: TextAlign.center,
           ),

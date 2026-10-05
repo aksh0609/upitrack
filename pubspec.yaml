@@ -1,5 +1,5 @@
 name: upitrack
-description: Tracks payments from every UPI app by reading bank SMS on the device.
+description: Tracks payments from every UPI app using bank SMS and statements, on the device.
 publish_to: none
 version: 0.1.0+1
 
@@ -9,10 +9,17 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # File picking for statement import.
+  file_picker: '>=8.1.0 <11.0.0'
   intl: ^0.20.2
   path: ^1.9.0
+  path_provider: ^2.1.0
   permission_handler: ^12.0.0
   sqflite: ^2.4.0
+  # PDF text extraction (also opens password-protected statements).
+  # Free under the Syncfusion Community License for individuals and small
+  # companies; see README.
+  syncfusion_flutter_pdf: '>=29.1.33 <40.0.0'
 
 dev_dependencies:
   flutter_test:

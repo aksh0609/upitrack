@@ -20,5 +20,15 @@ android/app/profile/
 android/app/release/
 **/GeneratedPluginRegistrant.*
 android/key.properties
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/ephemeral/
+ios/Runner/GeneratedPluginRegistrant.*
+**/xcuserdata/
+*.xcworkspace/xcuserdata/
 *.jks
 *.keystore

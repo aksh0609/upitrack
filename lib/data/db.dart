@@ -31,6 +31,7 @@ class AppDb {
             ts INTEGER NOT NULL,
             raw TEXT,
             manual INTEGER NOT NULL DEFAULT 0,
+            source TEXT NOT NULL DEFAULT 'sms',
             hidden INTEGER NOT NULL DEFAULT 0
           )''');
         await db.execute('CREATE INDEX idx_txns_ts ON txns(ts)');

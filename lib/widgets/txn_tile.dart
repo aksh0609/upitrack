@@ -16,7 +16,8 @@ class TxnTile extends StatelessWidget {
     final cat = categoryOf(txn.category);
     final scheme = Theme.of(context).colorScheme;
     final details = [
-      DateFormat('h:mm a').format(txn.time),
+      if (txn.hasTime) DateFormat('h:mm a').format(txn.time),
+      if (txn.source == 'statement') 'Statement',
       if (txn.bank != null) txn.bank!,
       if (txn.account != null) '•••${txn.account}',
       txn.channel,

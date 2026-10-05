@@ -1,4 +1,4 @@
-name: Test and build APK
+name: Test and build
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  android:
+    name: Tests + Android APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,9 +23,9 @@ jobs:
           channel: stable
           cache: true
 
-      # Fills in any standard Flutter Android files that aren't in the repo
-      # (Gradle scripts, icons, themes). Existing files are never overwritten,
-      # so our AndroidManifest.xml and MainActivity.kt are kept.
+      # Fills in standard Flutter platform files that aren't in the repo
+      # (Gradle scripts, icons, themes). Existing files are never
+      # overwritten, so our AndroidManifest.xml and MainActivity.kt are kept.
       - name: Generate missing platform files
         run: flutter create --platforms=android --org com.piyush --project-name upitrack .
 
@@ -43,3 +44,29 @@ jobs:
         with:
           name: upitrack-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+  ios:
+    name: iOS build check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate missing platform files
+        run: flutter create --platforms=ios --org com.piyush --project-name upitrack .
+
+      - name: Add the Shortcuts action to the Xcode project
+        run: |
+          gem list -i xcodeproj > /dev/null || sudo gem install xcodeproj --no-document
+          ruby scripts/setup_ios.rb
+
+      - run: flutter pub get
+
+      # Compiles the app without signing. Installing on a phone needs your
+      # own Apple signing (see README).
+      - name: Build iOS (unsigned)
+        run: flutter build ios --release --no-codesign

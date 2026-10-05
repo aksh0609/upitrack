@@ -15,6 +15,7 @@ class Txn {
     required this.time,
     this.raw,
     this.manual = false,
+    this.source = 'sms',
   });
 
   final int? id;
@@ -39,6 +40,12 @@ class Txn {
   final String? raw;
   final bool manual;
 
+  /// Where it came from: 'sms', 'shortcut' (iPhone), 'statement' or 'manual'.
+  final String source;
+
+  /// Statement rows usually have only a date, not a time.
+  bool get hasTime => source != 'statement' || time.hour != 12 || time.minute != 0;
+
   Map<String, Object?> toMap() => {
         if (id != null) 'id': id,
         'key': key,
@@ -54,6 +61,7 @@ class Txn {
         'ts': time.millisecondsSinceEpoch,
         'raw': raw,
         'manual': manual ? 1 : 0,
+        'source': source,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -71,5 +79,6 @@ class Txn {
         time: DateTime.fromMillisecondsSinceEpoch(m['ts'] as int),
         raw: m['raw'] as String?,
         manual: (m['manual'] as int? ?? 0) == 1,
+        source: m['source'] as String? ?? 'sms',
       );
 }
