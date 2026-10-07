@@ -13,6 +13,7 @@ import '../widgets/category_bars.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/txn_tile.dart';
 import 'add_txn_sheet.dart';
+import 'hidden_screen.dart';
 import 'import_flow.dart';
 import 'iphone_setup_screen.dart';
 import 'txn_sheet.dart';
@@ -151,6 +152,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ));
   }
 
+  Future<void> _openHidden() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => HiddenScreen(repository: widget.repository),
+    ));
+    await _load();
+  }
+
   Future<void> _addManual() async {
     final added = await showAddTxnSheet(context, widget.repository);
     if (added == true) await _load();
@@ -185,6 +193,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             onSelected: (v) {
               if (v == 'import') _importStatement();
               if (v == 'iphone') _openIphoneSetup();
+              if (v == 'hidden') _openHidden();
             },
             itemBuilder: (_) => [
               const PopupMenuItem(
@@ -192,6 +201,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: ListTile(
                   leading: Icon(Icons.upload_file),
                   title: Text('Import statement'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'hidden',
+                child: ListTile(
+                  leading: Icon(Icons.visibility_off_outlined),
+                  title: Text('Hidden'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),

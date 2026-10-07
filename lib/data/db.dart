@@ -99,6 +99,15 @@ class AppDb {
   Future<void> hide(int id) =>
       _db.update('txns', {'hidden': 1}, where: 'id = ?', whereArgs: [id]);
 
+  /// Everything the user hid, newest first, across all months.
+  Future<List<Txn>> hidden() async {
+    final rows = await _db.query('txns', where: 'hidden = 1', orderBy: 'ts DESC');
+    return rows.map(Txn.fromMap).toList();
+  }
+
+  Future<void> unhide(int id) =>
+      _db.update('txns', {'hidden': 0}, where: 'id = ?', whereArgs: [id]);
+
   Future<Map<String, String>> rules() async {
     final rows = await _db.query('rules');
     return {

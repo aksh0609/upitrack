@@ -99,4 +99,25 @@ void main() {
       expect(again.duplicates, 1);
     });
   });
+
+  group('hide / unhide', () {
+    test('hidden payments leave the month view and can come back', () async {
+      final repo = TxnRepository(
+        db,
+        FakeSms([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]),
+        FakeInbox(),
+      );
+      await repo.syncSms();
+      final t = (await repo.between(DateTime(2026, 10), DateTime(2026, 11))).single;
+
+      await repo.hide(t);
+      expect(await repo.between(DateTime(2026, 10), DateTime(2026, 11)), isEmpty);
+      final hidden = await repo.hidden();
+      expect(hidden.single.key, t.key);
+
+      await repo.unhide(hidden.single);
+      expect(await repo.hidden(), isEmpty);
+      expect(await repo.between(DateTime(2026, 10), DateTime(2026, 11)), hasLength(1));
+    });
+  });
 }

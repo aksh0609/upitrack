@@ -230,6 +230,10 @@ class TxnRepository {
 
   Future<void> hide(Txn t) => _db.hide(t.id!);
 
+  Future<List<Txn>> hidden() => _db.hidden();
+
+  Future<void> unhide(Txn t) => _db.unhide(t.id!);
+
   /// For cash, UPI Lite or anything that didn't come with a bank SMS.
   Future<void> addManual({
     required int amountPaise,
