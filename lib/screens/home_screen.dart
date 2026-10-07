@@ -1,14 +1,17 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/repository.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
 import '../util/format.dart';
+import '../util/update_check.dart';
 import '../widgets/category_bars.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/txn_tile.dart';
@@ -23,9 +26,10 @@ import 'unparsed_screen.dart';
 enum _Access { checking, granted, denied, permanentlyDenied, iphone }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.repository});
+  const HomeScreen({super.key, required this.repository, this.updateChecker});
 
   final TxnRepository repository;
+  final UpdateChecker? updateChecker;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -39,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _upiOnly = false;
   int _shortcutCount = 0;
   int _unparsedCount = 0;
+  UpdateInfo? _update;
 
   bool get _isCurrentMonth {
     final now = DateTime.now();
@@ -50,6 +55,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkAccess();
+    _checkUpdate();
+  }
+
+  /// Android only: the APK is installed by hand, so tell people about new
+  /// releases. Web is always current; iPhone updates through TestFlight.
+  Future<void> _checkUpdate() async {
+    final checker = widget.updateChecker;
+    if (checker == null || kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    final info = await checker.check();
+    if (mounted) setState(() => _update = info);
+  }
+
+  Future<void> _dismissUpdate() async {
+    await widget.updateChecker!.dismiss(_update!.tag);
+    if (mounted) setState(() => _update = null);
   }
 
   @override
@@ -251,6 +271,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
           children: [
+            if (_update != null)
+              _UpdateCard(
+                info: _update!,
+                onDownload: () => launchUrl(Uri.parse(_update!.url),
+                    mode: LaunchMode.externalApplication),
+                onDismiss: _dismissUpdate,
+              ),
             if (_access == _Access.denied ||
                 _access == _Access.permanentlyDenied)
               _PermissionCard(
@@ -501,6 +528,48 @@ class _UnparsedCard extends StatelessWidget {
         subtitle: const Text('Add them by hand or report them'),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _UpdateCard extends StatelessWidget {
+  const _UpdateCard({
+    required this.info,
+    required this.onDownload,
+    required this.onDismiss,
+  });
+
+  final UpdateInfo info;
+  final VoidCallback onDownload;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: scheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Version ${info.tag.replaceFirst('v', '')} is available',
+                style: text.titleMedium),
+            const SizedBox(height: 4),
+            Text('Download the new APK and open it to update.',
+                style: text.bodyMedium),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: onDismiss, child: const Text('Later')),
+                FilledButton(onPressed: onDownload, child: const Text('Download')),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

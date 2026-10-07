@@ -21,6 +21,9 @@ dependencies:
   # companies; see README.
   syncfusion_flutter_pdf: '>=29.1.33 <40.0.0'
   share_plus: ^12.0.2
+  http: ^1.6.0
+  package_info_plus: ^9.0.1
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
