@@ -146,7 +146,7 @@ SMS arrives, instead of waiting for the app to be opened.
 No app store means no auto-update.
 
 - Once per 24 h (`meta.update_checked_ms`), GET
-  `https://api.github.com/repos/<owner>/upitrack/releases/latest`. Compare
+  `https://api.github.com/repos/aksh0609/upitrack/releases/latest`. Compare
   `tag_name` (e.g. `v0.2.0`) with `package_info_plus` version using plain
   semver tuple comparison.
 - Newer → a dismissible banner at the top of the home list: "Version 0.2.0 is
@@ -287,7 +287,7 @@ summary card and a warning icon on the menu; tapping it shows the error.
   OAuth consent screen published with only the `drive.appdata` scope, and
   three OAuth client IDs: Android (package `com.piyush.upitrack` + SHA-1 of
   the release keystore), iOS (bundle id), Web (origin
-  `https://<owner>.github.io`). Client IDs are not secrets and are committed.
+  `https://aksh0609.github.io`). Client IDs are not secrets and are committed.
 
 ### 4.8 Web build
 
