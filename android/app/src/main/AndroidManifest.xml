@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Read bank transaction SMS. Processed only on the device. -->
     <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Update check (GitHub Releases API). Phase 2 adds Google Drive sync. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:label="UPI Track"
