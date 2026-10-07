@@ -185,6 +185,10 @@ class SmsParser {
         _creditWord.hasMatch(body);
   }
 
+  /// The transaction amount in an SMS [parse] rejected, used to prefill
+  /// manual entry. Skips "Avl Bal" style amounts like [parse] does.
+  static int? firstAmountPaise(String body) => _amount(body);
+
   /// Returns a transaction, or null if the SMS isn't a completed money movement.
   static ParsedTxn? parse(String address, String body) {
     if (body.trim().isEmpty || !isLikelyBankSender(address)) return null;

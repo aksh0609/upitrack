@@ -206,4 +206,12 @@ void main() {
       expect(SmsParser.looksLikeTransaction('VM-HDFCBK', 'Thank you for banking with us.'), isFalse);
     });
   });
+
+  group('firstAmountPaise', () {
+    test('first transaction amount, skipping balances', () {
+      expect(SmsParser.firstAmountPaise('withdrawal of INR 320.00 towards UPI'), 32000);
+      expect(SmsParser.firstAmountPaise('A/c debited by 120.0 trf to X'), 12000);
+      expect(SmsParser.firstAmountPaise('Avl Bal Rs.10,000.00 only'), isNull);
+    });
+  });
 }

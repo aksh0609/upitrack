@@ -20,6 +20,7 @@ dependencies:
   # Free under the Syncfusion Community License for individuals and small
   # companies; see README.
   syncfusion_flutter_pdf: '>=29.1.33 <40.0.0'
+  share_plus: ^12.0.2
 
 dev_dependencies:
   flutter_test:

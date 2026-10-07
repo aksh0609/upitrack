@@ -17,6 +17,7 @@ import 'hidden_screen.dart';
 import 'import_flow.dart';
 import 'iphone_setup_screen.dart';
 import 'txn_sheet.dart';
+import 'unparsed_screen.dart';
 
 /// Android: SMS permission state. iPhone: SMS come in via Shortcuts instead.
 enum _Access { checking, granted, denied, permanentlyDenied, iphone }
@@ -37,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _syncing = false;
   bool _upiOnly = false;
   int _shortcutCount = 0;
+  int _unparsedCount = 0;
 
   bool get _isCurrentMonth {
     final now = DateTime.now();
@@ -121,7 +123,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _load() async {
     final txns = await widget.repository
         .between(_month, DateTime(_month.year, _month.month + 1));
-    if (mounted) setState(() => _txns = txns);
+    final unparsed = await widget.repository.unparsed();
+    if (mounted) {
+      setState(() {
+        _txns = txns;
+        _unparsedCount = unparsed.length;
+      });
+    }
   }
 
   void _snack(String message) {
@@ -150,6 +158,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => IphoneSetupScreen(messagesReceived: _shortcutCount),
     ));
+  }
+
+  Future<void> _openUnparsed() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => UnparsedScreen(repository: widget.repository),
+    ));
+    await _load();
   }
 
   Future<void> _openHidden() async {
@@ -244,6 +259,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             if (_access == _Access.iphone && _shortcutCount == 0)
               _IphoneCard(onSetup: _openIphoneSetup, onImport: _importStatement),
+            if (_unparsedCount > 0)
+              _UnparsedCard(count: _unparsedCount, onTap: _openUnparsed),
             _MonthSwitcher(
               month: _month,
               canGoForward: !_isCurrentMonth,
@@ -461,6 +478,29 @@ class _EmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _UnparsedCard extends StatelessWidget {
+  const _UnparsedCard({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: const Icon(Icons.help_outline),
+        title: Text(count == 1
+            ? '1 bank SMS could not be read'
+            : '$count bank SMS could not be read'),
+        subtitle: const Text('Add them by hand or report them'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
       ),
     );
   }

@@ -264,12 +264,15 @@ class TxnRepository {
       _db.setUnparsedState(u.id!, state);
 
   /// For cash, UPI Lite or anything that didn't come with a bank SMS.
+  /// [raw] is the original SMS when the entry comes from the
+  /// "not recognised" list, so the detail sheet can still show it.
   Future<void> addManual({
     required int amountPaise,
     required bool isDebit,
     required String counterparty,
     required String category,
     required DateTime time,
+    String? raw,
   }) =>
       _db.insertAll([
         Txn(
@@ -280,6 +283,7 @@ class TxnRepository {
           channel: 'Cash',
           category: category,
           time: time,
+          raw: raw,
           manual: true,
           source: 'manual',
         ),
