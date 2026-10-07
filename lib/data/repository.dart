@@ -151,10 +151,15 @@ class TxnRepository {
       DateTime(first.year, first.month, first.day),
       DateTime(last.year, last.month, last.day + 1),
     );
-    final present = {
-      for (final t in existing)
-        if (t.source != 'statement') _sameDayKey(t.time, t.amountPaise, t.isDebit),
-    };
+    // How many non-statement payments exist per day/amount/direction. Each
+    // statement row consumes one match, so two ₹50 payments on one day with
+    // only one SMS caught still import the second one.
+    final present = <String, int>{};
+    for (final t in existing) {
+      if (t.source == 'statement') continue;
+      final k = _sameDayKey(t.time, t.amountPaise, t.isDebit);
+      present[k] = (present[k] ?? 0) + 1;
+    }
 
     final rules = await _db.rules();
     final occurrences = <String, int>{};
@@ -162,7 +167,10 @@ class TxnRepository {
     var duplicates = 0;
 
     for (final r in rows) {
-      if (present.contains(_sameDayKey(r.date, r.amountPaise, r.isDebit))) {
+      final dayKey = _sameDayKey(r.date, r.amountPaise, r.isDebit);
+      final left = present[dayKey] ?? 0;
+      if (left > 0) {
+        present[dayKey] = left - 1;
         duplicates++;
         continue;
       }
