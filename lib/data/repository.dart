@@ -149,8 +149,7 @@ class TxnRepository {
   }
 
   String _category(String counterparty, bool isDebit, Map<String, String> rules) =>
-      (isDebit ? rules[counterparty] : null) ??
-      Categorizer.categorize(counterparty, isDebit: isDebit);
+      Categorizer.categorizeWith(rules, counterparty, isDebit: isDebit);
 
   // ----------------------------------------------------------- statements
 

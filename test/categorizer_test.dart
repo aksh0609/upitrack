@@ -30,6 +30,13 @@ void main() {
       expect(cat('paytmqr281005@paytm'), 'Others');
       expect(Categorizer.categorize('SWIGGY', isDebit: false), 'Income');
     });
+
+    test('categorizeWith prefers the remembered rule for debits only', () {
+      const rules = {'SWIGGY': 'Groceries'};
+      expect(Categorizer.categorizeWith(rules, 'SWIGGY', isDebit: true), 'Groceries');
+      expect(Categorizer.categorizeWith(rules, 'ZOMATO', isDebit: true), 'Food');
+      expect(Categorizer.categorizeWith(rules, 'SWIGGY', isDebit: false), 'Income');
+    });
   });
 
   group('MonthSummary', () {

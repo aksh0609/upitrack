@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'background/sms_background.dart';
 import 'data/db.dart';
 import 'data/repository.dart';
 import 'data/shortcut_inbox.dart';
@@ -17,6 +18,12 @@ Future<void> main() async {
     updateChecker: UpdateChecker(db, currentVersion: info.version),
   ));
 }
+
+/// Started by android/.../SmsReceiver.kt when a bank SMS arrives. It must be
+/// a top-level function in a library the app imports, or the compiler
+/// tree-shakes it away.
+@pragma('vm:entry-point')
+Future<void> smsBackground() => runSmsBackground();
 
 class UpiTrackApp extends StatelessWidget {
   const UpiTrackApp({super.key, required this.repository, this.updateChecker});

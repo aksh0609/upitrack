@@ -109,6 +109,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
     final status = await Permission.sms.request();
+    // Android 13+: notifications need their own permission. Older versions
+    // return granted at once.
+    if (status.isGranted) await Permission.notification.request();
     if (!mounted) return;
     setState(() => _access = _accessFrom(status));
     await _sync();

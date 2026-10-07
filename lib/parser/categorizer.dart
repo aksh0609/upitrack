@@ -80,4 +80,14 @@ class Categorizer {
     if (_personVpa.hasMatch(text)) return transfers;
     return others;
   }
+
+  /// The user's remembered choice for this payee, else the keyword guess.
+  /// Rules only apply to money going out.
+  static String categorizeWith(
+    Map<String, String> rules,
+    String counterparty, {
+    required bool isDebit,
+  }) =>
+      (isDebit ? rules[counterparty] : null) ??
+      categorize(counterparty, isDebit: isDebit);
 }
