@@ -23,12 +23,6 @@ jobs:
           channel: stable
           cache: true
 
-      # Fills in standard Flutter platform files that aren't in the repo
-      # (Gradle scripts, icons, themes). Existing files are never
-      # overwritten, so our AndroidManifest.xml and MainActivity.kt are kept.
-      - name: Generate missing platform files
-        run: flutter create --platforms=android --org com.piyush --project-name upitrack .
-
       - run: flutter pub get
 
       - name: Analyze
