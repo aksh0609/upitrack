@@ -184,4 +184,26 @@ void main() {
       );
     });
   });
+
+  group('looksLikeTransaction', () {
+    test('unfamiliar bank wording with an amount', () {
+      const body = 'Your a/c 1234 has a withdrawal of INR 320.00 at 10:12 towards UPI/9876';
+      expect(SmsParser.parse('AD-UCOBNK', body), isNull, reason: 'not parsed today');
+      expect(SmsParser.looksLikeTransaction('AD-UCOBNK', body), isTrue);
+    });
+
+    test('debit word without a currency symbol', () {
+      expect(SmsParser.looksLikeTransaction('AD-SBIUPI', 'A/c X1234 debited 300 for a new format'), isTrue);
+    });
+
+    test('OTP, promotion and personal numbers are not transactions', () {
+      expect(SmsParser.looksLikeTransaction('VM-HDFCBK', '123456 is your OTP for Rs 500'), isFalse);
+      expect(SmsParser.looksLikeTransaction('AD-PAYTMB', 'Get Rs 100 cashback! Limited offer.'), isFalse);
+      expect(SmsParser.looksLikeTransaction('+919876543210', 'Rs 5000 credited to your A/c'), isFalse);
+    });
+
+    test('no amount and no money word', () {
+      expect(SmsParser.looksLikeTransaction('VM-HDFCBK', 'Thank you for banking with us.'), isFalse);
+    });
+  });
 }

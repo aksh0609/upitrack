@@ -174,6 +174,17 @@ class SmsParser {
   static bool isLikelyBankSender(String address) =>
       !RegExp(r'^\+?\d{7,}$').hasMatch(address.replaceAll(' ', ''));
 
+  /// True when an SMS that [parse] rejected still looks like a bank payment:
+  /// bank sender, not an OTP/promo/reminder, and it mentions an amount or a
+  /// debit/credit word. Used to show "we couldn't read this" to the user.
+  static bool looksLikeTransaction(String address, String body) {
+    if (body.trim().isEmpty || !isLikelyBankSender(address)) return false;
+    if (_exclude.hasMatch(body)) return false;
+    return _currencyAmount.hasMatch(body) ||
+        _debitWord.hasMatch(body) ||
+        _creditWord.hasMatch(body);
+  }
+
   /// Returns a transaction, or null if the SMS isn't a completed money movement.
   static ParsedTxn? parse(String address, String body) {
     if (body.trim().isEmpty || !isLikelyBankSender(address)) return null;
