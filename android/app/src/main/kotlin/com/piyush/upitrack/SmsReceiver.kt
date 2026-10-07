@@ -54,9 +54,9 @@ class SmsReceiver : BroadcastReceiver() {
                     "sms",
                     mapOf("address" to address, "body" to body),
                     object : MethodChannel.Result {
-                        override fun success(r: Any?) { finish() }
-                        override fun error(code: String, msg: String?, details: Any?) { finish() }
-                        override fun notImplemented() { finish() }
+                        override fun success(r: Any?) { handler.post { finish() } }
+                        override fun error(code: String, msg: String?, details: Any?) { handler.post { finish() } }
+                        override fun notImplemented() { handler.post { finish() } }
                     }
                 )
             } else {

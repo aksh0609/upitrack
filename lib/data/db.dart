@@ -65,6 +65,18 @@ class AppDb {
             state TEXT NOT NULL DEFAULT 'open'
           )''');
 
+  /// A separate read-only connection for the background SMS path. Not a
+  /// single instance, so closing it never touches the app's own connection,
+  /// and no version/migration hooks run. Throws if the file doesn't exist.
+  static Future<AppDb> openReadOnly({DatabaseFactory? factory, String? path}) async {
+    final f = factory ?? databaseFactory;
+    final db = await f.openDatabase(
+      path ?? p.join(await f.getDatabasesPath(), 'upitrack.db'),
+      options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+    );
+    return AppDb._(db);
+  }
+
   Future<void> close() => _db.close();
 
   Future<int> _count() async =>

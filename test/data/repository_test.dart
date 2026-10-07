@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:upitrack/data/db.dart';
 import 'package:upitrack/data/repository.dart';
@@ -175,6 +178,32 @@ void main() {
         UnparsedSms(key: 'shortcut:old', sender: 'AD-UCOBNK', body: ucoBody, time: DateTime.now()),
       ]);
       expect((await repo.unparsed()).map((u) => u.key), containsAll(['sms:2', 'shortcut:old']));
+    });
+  });
+
+  group('openReadOnly', () {
+    test('reads rules, refuses writes, and leaves the main connection open', () async {
+      final dir = await Directory.systemTemp.createTemp('upitrack_test');
+      final path = p.join(dir.path, 'upitrack.db');
+      final main = await AppDb.open(factory: databaseFactoryFfi, path: path);
+      await main.setCategoryForPayee('SWIGGY', 'Groceries');
+
+      final ro = await AppDb.openReadOnly(factory: databaseFactoryFfi, path: path);
+      expect(await ro.rules(), {'SWIGGY': 'Groceries'});
+      await expectLater(ro.setMeta('k', 'v'), throwsA(isA<DatabaseException>()));
+      await ro.close();
+
+      // The app's own connection is unaffected by the read-only close.
+      expect(await main.rules(), {'SWIGGY': 'Groceries'});
+      await main.close();
+      await dir.delete(recursive: true);
+    });
+
+    test('fails when the database file does not exist yet', () async {
+      await expectLater(
+        AppDb.openReadOnly(factory: databaseFactoryFfi, path: '/nonexistent/upitrack.db'),
+        throwsA(anything),
+      );
     });
   });
 }

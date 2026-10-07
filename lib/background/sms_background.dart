@@ -31,9 +31,7 @@ Future<void> notifyForSms({required String address, required String body}) async
   final parsed = SmsParser.parse(address, body);
   if (parsed == null) return;
 
-  final db = await AppDb.open();
-  final rules = await db.rules();
-  await db.close();
+  final rules = await _rules();
   final who = parsed.counterparty ?? 'Unknown';
   final category = Categorizer.categorizeWith(rules, who, isDebit: parsed.isDebit);
   final text = notificationText(parsed, category);
@@ -58,4 +56,20 @@ Future<void> notifyForSms({required String address, required String body}) async
       ),
     ),
   );
+}
+
+/// The payee→category rules, from a private read-only connection. Empty when
+/// the database doesn't exist yet (an SMS before the app's first launch).
+Future<Map<String, String>> _rules() async {
+  final AppDb db;
+  try {
+    db = await AppDb.openReadOnly();
+  } catch (_) {
+    return const {};
+  }
+  try {
+    return await db.rules();
+  } finally {
+    await db.close();
+  }
 }
