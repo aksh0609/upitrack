@@ -4,6 +4,7 @@ import 'package:upitrack/data/db.dart';
 import 'package:upitrack/data/repository.dart';
 import 'package:upitrack/data/shortcut_inbox.dart';
 import 'package:upitrack/data/sms_source.dart';
+import 'package:upitrack/models/unparsed.dart';
 import 'package:upitrack/parser/statement_parser.dart';
 
 /// Returns canned SMS instead of reading the Android inbox.
@@ -118,6 +119,49 @@ void main() {
       await repo.unhide(hidden.single);
       expect(await repo.hidden(), isEmpty);
       expect(await repo.between(DateTime(2026, 10), DateTime(2026, 11)), hasLength(1));
+    });
+  });
+
+  group('unparsed SMS', () {
+    const ucoBody = 'Your a/c 1234 has a withdrawal of INR 320.00 at 10:12 towards UPI/9876';
+
+    test('bank-looking SMS the parser rejects are kept; OTPs are not', () async {
+      final repo = TxnRepository(
+        db,
+        FakeSms([
+          RawSms(id: 7, address: 'AD-UCOBNK', body: ucoBody, date: DateTime(2026, 10, 3, 10)),
+          RawSms(id: 8, address: 'VM-HDFCBK', body: '123456 is your OTP for Rs 500.', date: DateTime(2026, 10, 3, 9)),
+          RawSms(id: 9, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9)),
+        ]),
+        FakeInbox(),
+      );
+      expect(await repo.syncSms(), 1);
+
+      final open = await repo.unparsed();
+      expect(open, hasLength(1));
+      expect(open.single.key, 'sms:7');
+      expect(open.single.sender, 'AD-UCOBNK');
+      expect(open.single.body, ucoBody);
+
+      // Syncing again doesn't duplicate it.
+      await repo.syncSms();
+      expect(await repo.unparsed(), hasLength(1));
+
+      await repo.resolveUnparsed(open.single, state: 'ignored');
+      expect(await repo.unparsed(), isEmpty);
+    });
+
+    test('resolved rows older than 90 days are purged on sync', () async {
+      await db.insertUnparsed([
+        UnparsedSms(key: 'sms:1', sender: 'AD-UCOBNK', body: ucoBody,
+            time: DateTime.now().subtract(const Duration(days: 120)), state: 'ignored'),
+        UnparsedSms(key: 'sms:2', sender: 'AD-UCOBNK', body: ucoBody,
+            time: DateTime.now().subtract(const Duration(days: 120))),
+      ]);
+      final repo = TxnRepository(db, FakeSms(const []), FakeInbox());
+      await repo.syncSms();
+      final left = await repo.unparsed();
+      expect(left.map((u) => u.key), ['sms:2'], reason: 'open rows are never purged');
     });
   });
 }

@@ -1,4 +1,5 @@
 import '../models/txn.dart';
+import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
 import '../parser/sms_parser.dart';
 import '../parser/statement_parser.dart';
@@ -33,6 +34,9 @@ class TxnRepository {
   /// How far back to look the very first time the app reads SMS (Android).
   static const Duration firstSyncWindow = Duration(days: 180);
 
+  /// Handled "not recognised" rows are deleted after this long.
+  static const Duration unparsedRetention = Duration(days: 90);
+
   // ------------------------------------------------------------- Android
 
   /// Reads new SMS from the inbox, parses bank transactions and stores them.
@@ -48,20 +52,28 @@ class TxnRepository {
 
     final messages = await _sms.readInbox(since: since);
     final rules = await _db.rules();
-    final txns = [
-      for (final m in messages)
-        _fromSms(
-          sender: m.address,
-          body: m.body,
-          time: m.date,
-          fallbackKey: 'sms:${m.id}',
-          smsId: m.id,
-          source: 'sms',
-          rules: rules,
-        ),
-    ].whereType<Txn>().toList();
+    final txns = <Txn>[];
+    final unparsed = <UnparsedSms>[];
+    for (final m in messages) {
+      final t = _fromSms(
+        sender: m.address,
+        body: m.body,
+        time: m.date,
+        fallbackKey: 'sms:${m.id}',
+        smsId: m.id,
+        source: 'sms',
+        rules: rules,
+      );
+      if (t != null) {
+        txns.add(t);
+      } else if (SmsParser.looksLikeTransaction(m.address, m.body)) {
+        unparsed.add(UnparsedSms(key: 'sms:${m.id}', sender: m.address, body: m.body, time: m.date));
+      }
+    }
 
     final added = await _db.insertAll(txns);
+    await _db.insertUnparsed(unparsed);
+    await _db.purgeUnparsed(before: now.subtract(unparsedRetention));
     await _db.setMeta('last_sync_ms', now.millisecondsSinceEpoch.toString());
     return added;
   }
@@ -73,18 +85,25 @@ class TxnRepository {
     final messages = await _inbox.pending();
     if (messages.isEmpty) return 0;
     final rules = await _db.rules();
-    final txns = [
-      for (final m in messages)
-        _fromSms(
-          sender: m.sender,
-          body: m.body,
-          time: m.date,
-          fallbackKey: 'shortcut:${m.id}',
-          source: 'shortcut',
-          rules: rules,
-        ),
-    ].whereType<Txn>().toList();
+    final txns = <Txn>[];
+    final unparsed = <UnparsedSms>[];
+    for (final m in messages) {
+      final t = _fromSms(
+        sender: m.sender,
+        body: m.body,
+        time: m.date,
+        fallbackKey: 'shortcut:${m.id}',
+        source: 'shortcut',
+        rules: rules,
+      );
+      if (t != null) {
+        txns.add(t);
+      } else if (SmsParser.looksLikeTransaction(m.sender, m.body)) {
+        unparsed.add(UnparsedSms(key: 'shortcut:${m.id}', sender: m.sender, body: m.body, time: m.date));
+      }
+    }
     final added = await _db.insertAll(txns);
+    await _db.insertUnparsed(unparsed);
     await _inbox.remove(messages);
 
     final seen = int.tryParse(await _db.getMeta('shortcut_count') ?? '') ?? 0;
@@ -233,6 +252,15 @@ class TxnRepository {
   Future<List<Txn>> hidden() => _db.hidden();
 
   Future<void> unhide(Txn t) => _db.unhide(t.id!);
+
+  // ----------------------------------------------------------- unparsed
+
+  /// Bank-looking SMS the parser couldn't read, newest first.
+  Future<List<UnparsedSms>> unparsed() => _db.openUnparsed();
+
+  /// [state] is 'added' (user entered it by hand) or 'ignored'.
+  Future<void> resolveUnparsed(UnparsedSms u, {required String state}) =>
+      _db.setUnparsedState(u.id!, state);
 
   /// For cash, UPI Lite or anything that didn't come with a bank SMS.
   Future<void> addManual({
