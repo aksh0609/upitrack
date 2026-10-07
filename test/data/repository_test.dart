@@ -162,6 +162,19 @@ void main() {
       await repo.syncSms();
       final left = await repo.unparsed();
       expect(left.map((u) => u.key), ['sms:2'], reason: 'open rows are never purged');
+
+      // The iPhone path purges too, even when the inbox is empty.
+      await db.insertUnparsed([
+        UnparsedSms(key: 'shortcut:old', sender: 'AD-UCOBNK', body: ucoBody,
+            time: DateTime.now().subtract(const Duration(days: 120)), state: 'ignored'),
+      ]);
+      await repo.syncShortcutInbox();
+      // Handled rows are invisible, so prove the purge: re-inserting the key
+      // only lands if the old row is gone (keys are unique, inserts ignore).
+      await db.insertUnparsed([
+        UnparsedSms(key: 'shortcut:old', sender: 'AD-UCOBNK', body: ucoBody, time: DateTime.now()),
+      ]);
+      expect((await repo.unparsed()).map((u) => u.key), containsAll(['sms:2', 'shortcut:old']));
     });
   });
 }

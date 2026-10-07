@@ -82,6 +82,7 @@ class TxnRepository {
 
   /// Stores bank SMS handed over by the "Log Bank SMS" Shortcuts action.
   Future<int> syncShortcutInbox() async {
+    await _db.purgeUnparsed(before: DateTime.now().subtract(unparsedRetention));
     final messages = await _inbox.pending();
     if (messages.isEmpty) return 0;
     final rules = await _db.rules();
