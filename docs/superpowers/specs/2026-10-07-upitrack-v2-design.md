@@ -181,7 +181,7 @@ conflicts. A device replaces the whole file on upload (`files.update` with
 media). `meta.json` is written once and never changed; "reset sync" deletes
 every file in the folder.
 
-### 4.3 Database changes (schema v2)
+### 4.3 Database changes (schema v3; v2 is Phase 1's `unparsed` table)
 
 ```sql
 ALTER TABLE txns ADD COLUMN edit_ts INTEGER NOT NULL DEFAULT 0;
