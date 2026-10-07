@@ -69,7 +69,7 @@ to the developer.
 
 - `SmsParser.looksLikeTransaction(address, body)` → `bool`. True when the
   sender passes `isLikelyBankSender`, the body is not matched by `_exclude`
-  (OTP, promo, reminder, failed) and it contains either a currency amount
+  (OTP, promo, reminder, failed), it mentions an account, card or UPI (`_account` / `_upiWord`), and it contains either a currency amount
   (`_currencyAmount`) or a debit/credit word (`_debitWord` / `_creditWord`).
 - During `syncSms` and `syncShortcutInbox`, every message where `parse`
   returns null but `looksLikeTransaction` is true is stored in a new table:

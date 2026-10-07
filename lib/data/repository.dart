@@ -166,7 +166,7 @@ class TxnRepository {
 
     final first = rows.map((r) => r.date).reduce((a, b) => a.isBefore(b) ? a : b);
     final last = rows.map((r) => r.date).reduce((a, b) => a.isAfter(b) ? a : b);
-    final existing = await _db.between(
+    final existing = await _db.betweenIncludingHidden(
       DateTime(first.year, first.month, first.day),
       DateTime(last.year, last.month, last.day + 1),
     );

@@ -205,6 +205,18 @@ void main() {
     test('no amount and no money word', () {
       expect(SmsParser.looksLikeTransaction('VM-HDFCBK', 'Thank you for banking with us.'), isFalse);
     });
+
+    test('merchant and telecom SMS with an amount are not transactions', () {
+      for (final body in [
+        'Your Swiggy order worth Rs 250 is on its way!',
+        'Airtel: recharge of Rs 299 successful. Enjoy unlimited calls.',
+        'Your Amazon order of Rs 1,299 has shipped. Track it in the app.',
+        'Zomato: refund of Rs 180 initiated to your original payment mode.',
+        'Jio: Rs 239 pack activated. Valid 28 days.',
+      ]) {
+        expect(SmsParser.looksLikeTransaction('VM-SWIGGY', body), isFalse, reason: body);
+      }
+    });
   });
 
   group('firstAmountPaise', () {

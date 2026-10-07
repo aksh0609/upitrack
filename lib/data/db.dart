@@ -107,6 +107,18 @@ class AppDb {
     return rows.map(Txn.fromMap).toList();
   }
 
+  /// Like [between] but including hidden rows: duplicate matching must see
+  /// a payment the user hid, or a statement import would add it back.
+  Future<List<Txn>> betweenIncludingHidden(DateTime from, DateTime to) async {
+    final rows = await _db.query(
+      'txns',
+      where: 'ts >= ? AND ts < ?',
+      whereArgs: [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch],
+      orderBy: 'ts DESC',
+    );
+    return rows.map(Txn.fromMap).toList();
+  }
+
   Future<void> setCategory(int id, String category) => _db.update(
       'txns', {'category': category},
       where: 'id = ?', whereArgs: [id]);

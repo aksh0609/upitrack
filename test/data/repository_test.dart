@@ -102,6 +102,25 @@ void main() {
       expect(again.added, 0);
       expect(again.duplicates, 1);
     });
+
+    test('a hidden payment is still a duplicate, not re-added', () async {
+      final repo = TxnRepository(
+        db,
+        FakeSms([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]),
+        FakeInbox(),
+      );
+      await repo.syncSms();
+      final t = (await repo.between(DateTime(2026, 10), DateTime(2026, 11))).single;
+      await repo.hide(t);
+
+      final s = await repo.importStatement(StatementResult([
+        StatementRow(date: DateTime(2026, 10, 3, 12), amountPaise: 25000, isDebit: true,
+            narration: 'UPI-SWIGGY-PAYMENT', counterparty: 'SWIGGY'),
+      ], 0));
+      expect(s.added, 0);
+      expect(s.duplicates, 1);
+      expect(await repo.between(DateTime(2026, 10), DateTime(2026, 11)), isEmpty);
+    });
   });
 
   group('hide / unhide', () {
@@ -204,6 +223,63 @@ void main() {
         AppDb.openReadOnly(factory: databaseFactoryFfi, path: '/nonexistent/upitrack.db'),
         throwsA(anything),
       );
+    });
+  });
+
+  group('schema migration', () {
+    test('a version-1 database gains the unparsed table and keeps its data', () async {
+      final dir = await Directory.systemTemp.createTemp('upitrack_v1');
+      final path = p.join(dir.path, 'upitrack.db');
+
+      // Build the v1 schema exactly as the first release created it.
+      final v1 = await databaseFactoryFfi.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 1,
+          onCreate: (db, _) async {
+            await db.execute('''
+              CREATE TABLE txns(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                sms_id INTEGER,
+                amount_paise INTEGER NOT NULL,
+                is_debit INTEGER NOT NULL,
+                counterparty TEXT NOT NULL,
+                bank TEXT,
+                account TEXT,
+                ref TEXT,
+                channel TEXT NOT NULL,
+                category TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                raw TEXT,
+                manual INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT 'sms',
+                hidden INTEGER NOT NULL DEFAULT 0
+              )''');
+            await db.execute('CREATE INDEX idx_txns_ts ON txns(ts)');
+            await db.execute(
+                'CREATE TABLE rules(counterparty TEXT PRIMARY KEY, category TEXT NOT NULL)');
+            await db.execute('CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
+          },
+        ),
+      );
+      await v1.insert('rules', {'counterparty': 'SWIGGY', 'category': 'Groceries'});
+      await v1.insert('txns', {
+        'key': 'ref:1:d', 'amount_paise': 100, 'is_debit': 1, 'counterparty': 'SWIGGY',
+        'channel': 'UPI', 'category': 'Groceries', 'ts': 1,
+      });
+      await v1.close();
+
+      final db = await AppDb.open(factory: databaseFactoryFfi, path: path);
+      expect(await db.rules(), {'SWIGGY': 'Groceries'});
+      expect(await db.between(DateTime.fromMillisecondsSinceEpoch(0), DateTime(2100)), hasLength(1));
+      // The v2 table exists and works.
+      await db.insertUnparsed([
+        UnparsedSms(key: 'sms:1', sender: 'AD-UCOBNK', body: 'x', time: DateTime(2026)),
+      ]);
+      expect(await db.openUnparsed(), hasLength(1));
+      await db.close();
+      await dir.delete(recursive: true);
     });
   });
 }
