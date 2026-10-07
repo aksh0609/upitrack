@@ -9,13 +9,16 @@ class AppDb {
 
   final Database _db;
 
-  static Future<AppDb> open() async {
-    final path = p.join(await getDatabasesPath(), 'upitrack.db');
-    final db = await openDatabase(
-      path,
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
+  /// Opens the on-device database. Tests pass [factory] (sqflite_common_ffi)
+  /// and [path] (`inMemoryDatabasePath`) to get a throwaway in-memory copy.
+  static Future<AppDb> open({DatabaseFactory? factory, String? path}) async {
+    final f = factory ?? databaseFactory;
+    final db = await f.openDatabase(
+      path ?? p.join(await f.getDatabasesPath(), 'upitrack.db'),
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('''
           CREATE TABLE txns(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             key TEXT NOT NULL UNIQUE,
@@ -34,16 +37,19 @@ class AppDb {
             source TEXT NOT NULL DEFAULT 'sms',
             hidden INTEGER NOT NULL DEFAULT 0
           )''');
-        await db.execute('CREATE INDEX idx_txns_ts ON txns(ts)');
-        // Category the user picked for a payee, applied to future payments.
-        await db.execute(
-            'CREATE TABLE rules(counterparty TEXT PRIMARY KEY, category TEXT NOT NULL)');
-        await db.execute(
-            'CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
-      },
+          await db.execute('CREATE INDEX idx_txns_ts ON txns(ts)');
+          // Category the user picked for a payee, applied to future payments.
+          await db.execute(
+              'CREATE TABLE rules(counterparty TEXT PRIMARY KEY, category TEXT NOT NULL)');
+          await db.execute(
+              'CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
+        },
+      ),
     );
     return AppDb._(db);
   }
+
+  Future<void> close() => _db.close();
 
   Future<int> _count() async =>
       Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM txns')) ??
