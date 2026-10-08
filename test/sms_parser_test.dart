@@ -186,6 +186,15 @@ void main() {
   });
 
   group('looksLikeTransaction', () {
+    test('gift card and wallet balance notices are not transactions', () {
+      const myntra = 'Dear Customer, your payment of Rs. 2716 using Myntra Gift Card '
+          '************4827 balance is successful. Updated Myntra Gift Card balance: Rs. 1284.0000.';
+      const flipkart = 'Flipkart Update: Your Gift Card ending with 02391 has a remaining '
+          'balance of Rs.242.00 and will expire on 12/07/2026. View details: https://flipkart.com/helpcentre';
+      expect(SmsParser.looksLikeTransaction('BG-MYNTRA-S', myntra), isFalse);
+      expect(SmsParser.looksLikeTransaction('BG-FLPKRT-S', flipkart), isFalse);
+      expect(SmsParser.parse('BG-MYNTRA-S', myntra), isNull);
+    });
     test('unfamiliar bank wording with an amount', () {
       const body = 'Your a/c 1234 has a withdrawal of INR 320.00 at 10:12 towards UPI/9876';
       expect(SmsParser.parse('AD-UCOBNK', body), isNull, reason: 'not parsed today');

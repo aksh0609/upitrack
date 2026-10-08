@@ -155,11 +155,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _snack(String message) {
+  void _snack(String message, {SnackBarAction? action}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(SnackBar(content: Text(message), action: action));
   }
 
   void _changeMonth(int delta) {
@@ -170,6 +170,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _openTxn(Txn t) async {
     final changed = await showTxnSheet(context, t, widget.repository);
     if (changed == true) await _load();
+  }
+
+  Future<void> _hideTxn(Txn t) async {
+    await widget.repository.hide(t);
+    await _load();
+    _snack(
+      'Hidden',
+      action: SnackBarAction(
+        label: 'Undo',
+        onPressed: () async {
+          await widget.repository.unhide(t);
+          await _load();
+        },
+      ),
+    );
   }
 
   Future<void> _importStatement() async {
@@ -342,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ));
       }
-      widgets.add(TxnTile(txn: t, onTap: () => _openTxn(t)));
+      widgets.add(TxnTile(txn: t, onTap: () => _openTxn(t), onHide: () => _hideTxn(t)));
     }
     return widgets;
   }

@@ -73,12 +73,14 @@ class SmsParser {
     caseSensitive: false,
   );
 
-  /// OTPs, collect requests, reminders, failed payments and promotions.
+  /// OTPs, collect requests, reminders, failed payments, promotions, and
+  /// gift-card / wallet balance notices (pre-paid, not a bank payment).
   static final RegExp _exclude = RegExp(
     r'\b(?:otp|one[\s-]?time[\s-]?password|requested|collect request|is due|'
     r'due on|due date|will be (?:debited|credited)|minimum amount|reminder|'
     r'offer|congratulations|apply now|claim now|eligible|failed|declined|'
-    r'unsuccessful|is pending)\b',
+    r'unsuccessful|is pending|gift\s*card|gift\s*voucher|wallet\s+balance|'
+    r'remaining\s+balance|will\s+expire)\b',
     caseSensitive: false,
   );
 
