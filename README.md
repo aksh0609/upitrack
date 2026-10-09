@@ -38,15 +38,6 @@ The latest release is on the [Releases page](https://github.com/aksh0609/upitrac
 
 Every push to `main` also builds a test APK: open the **Actions** tab, pick the latest **Test and build** run and download the **upitrack-apk** artifact.
 
-## Use it in a browser
-
-Open [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/). A browser can't read SMS, so the web app shows what your phone has synced and imports statements:
-
-1. Set up sync on the phone first (menu → **Sync**).
-2. In the browser: menu → **Sync** → press Google's *Sign in* button → **Allow Drive access** → enter the same passphrase.
-
-Google's web access lasts an hour; after that the Sync screen asks you to *Allow Drive access* again. The local copy lives in the browser profile (IndexedDB); clearing site data removes it and the next sync restores it. Every push to `main` deploys the site; a PR's build is attached to its CI run as the **upitrack-web** artifact.
-
 ### Releasing a new version
 
 1. Bump `version:` in `pubspec.yaml` (e.g. `0.2.0+2`).
@@ -64,6 +55,15 @@ Android only installs an update over an existing app when both are signed with t
    - `KEYSTORE_PASSWORD` and `KEY_PASSWORD`: the passwords you chose
    - `KEY_ALIAS`: `upload`
 3. Back up the `.jks` file and the passwords. Losing them means everyone must uninstall before the next update, and the Google sign-in for the planned Drive sync is tied to this key's SHA-1 (`keytool -list -v -keystore upload-keystore.jks`).
+
+## Use it in a browser
+
+Open [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/). A browser can't read SMS, so the web app shows what your phone has synced and imports statements:
+
+1. Set up sync on the phone first (menu → **Sync**).
+2. In the browser: menu → **Sync** → press Google's *Sign in* button → **Allow Drive access** → enter the same passphrase.
+
+Google's web access lasts an hour; after that the Sync screen asks you to *Allow Drive access* again. The local copy lives in the browser profile (IndexedDB); clearing site data removes it and the next sync restores it. Every push to `main` deploys the site; a PR's build is attached to its CI run as the **upitrack-web** artifact.
 
 ## Build locally
 

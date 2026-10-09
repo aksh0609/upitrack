@@ -114,6 +114,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: web
     runs-on: ubuntu-latest
+    # One deploy at a time, never cancelled half-way (GitHub's Pages starter workflow does the same).
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write
