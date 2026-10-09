@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -121,6 +123,14 @@ class AppDb {
 
   Future<void> close() => _db.close();
 
+  static int get _now => DateTime.now().millisecondsSinceEpoch;
+
+  /// Spec §4.3: every write that changes txns or rules flags the device for
+  /// upload. [e] is the connection or the transaction doing the write.
+  static Future<void> _markDirty(DatabaseExecutor e) => e.insert(
+      'meta', {'k': 'sync_dirty', 'v': '1'},
+      conflictAlgorithm: ConflictAlgorithm.replace);
+
   Future<int> _count() async =>
       Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM txns')) ??
       0;
@@ -136,7 +146,9 @@ class AppDb {
           conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     await batch.commit(noResult: true);
-    return await _count() - before;
+    final added = await _count() - before;
+    if (added > 0) await _markDirty(_db);
+    return added;
   }
 
   Future<List<Txn>> between(DateTime from, DateTime to) async {
@@ -173,34 +185,48 @@ class AppDb {
     ];
   }
 
-  Future<void> setCategory(int id, String category) => _db.update(
-      'txns', {'category': category},
-      where: 'id = ?', whereArgs: [id]);
+  /// [byUser] stamps `edit_ts` so the change wins on other devices and is
+  /// never undone by self-transfer pairing. Pairing itself passes false.
+  Future<void> setCategory(int id, String category, {bool byUser = true}) =>
+      _db.transaction((txn) async {
+        await txn.update(
+            'txns', {'category': category, if (byUser) 'edit_ts': _now},
+            where: 'id = ?', whereArgs: [id]);
+        await _markDirty(txn);
+      });
 
-  /// Re-categorises every payment to/from [counterparty] and remembers it.
+  /// Re-categorises every payment to [counterparty] and remembers it. Rows
+  /// keep their own `edit_ts`; the rule carries its time, so on another
+  /// device a later direct edit of one payment still wins (spec §4.5).
   Future<void> setCategoryForPayee(String counterparty, String category) async {
+    final now = _now;
     await _db.transaction((txn) async {
       await txn.update('txns', {'category': category},
-          where: 'counterparty = ? AND is_debit = 1',
-          whereArgs: [counterparty]);
+          where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ?',
+          whereArgs: [counterparty, now]);
       await txn.insert(
-          'rules', {'counterparty': counterparty, 'category': category},
+          'rules', {'counterparty': counterparty, 'category': category, 'ts': now},
           conflictAlgorithm: ConflictAlgorithm.replace);
+      await _markDirty(txn);
     });
   }
 
   /// Hidden rather than deleted, so the next SMS sync doesn't re-add it.
-  Future<void> hide(int id) =>
-      _db.update('txns', {'hidden': 1}, where: 'id = ?', whereArgs: [id]);
+  Future<void> hide(int id) => _setHidden(id, 1);
+
+  Future<void> unhide(int id) => _setHidden(id, 0);
+
+  Future<void> _setHidden(int id, int hidden) => _db.transaction((txn) async {
+        await txn.update('txns', {'hidden': hidden, 'edit_ts': _now},
+            where: 'id = ?', whereArgs: [id]);
+        await _markDirty(txn);
+      });
 
   /// Everything the user hid, newest first, across all months.
   Future<List<Txn>> hidden() async {
     final rows = await _db.query('txns', where: 'hidden = 1', orderBy: 'ts DESC');
     return rows.map(Txn.fromMap).toList();
   }
-
-  Future<void> unhide(int id) =>
-      _db.update('txns', {'hidden': 0}, where: 'id = ?', whereArgs: [id]);
 
   Future<Map<String, String>> rules() async {
     final rows = await _db.query('rules');
@@ -217,6 +243,17 @@ class AppDb {
     final rows =
         await _db.query('meta', where: 'k = ?', whereArgs: [k], limit: 1);
     return rows.isEmpty ? null : rows.first['v'] as String;
+  }
+
+  /// This install's id, generated once: 32 hex chars from a secure RNG.
+  /// Names this device's snapshot file and keys its manual entries.
+  Future<String> deviceId() async {
+    final existing = await getMeta('device_id');
+    if (existing != null) return existing;
+    final rng = Random.secure();
+    final id = List.generate(16, (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+    await setMeta('device_id', id);
+    return id;
   }
 
   Future<void> setMeta(String k, String v) => _db.insert(

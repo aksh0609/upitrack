@@ -498,4 +498,75 @@ void main() {
       expect(Txn.fromMap({...t.toMap()}..remove('edit_ts')..remove('hidden')).editTs, 0);
     });
   });
+
+  group('edit stamping and dirty flag', () {
+    TxnRepository repo(List<RawSms> sms) => TxnRepository(db, FakeSms(sms), FakeInbox());
+    Future<Txn> only(TxnRepository r) async =>
+        (await r.between(DateTime(2026, 10), DateTime(2026, 11))).single;
+
+    test('a new sync sets sync_dirty; a category change stamps edit_ts', () async {
+      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]);
+      expect(await db.getMeta('sync_dirty'), isNull);
+      await r.syncSms();
+      expect(await db.getMeta('sync_dirty'), '1');
+      expect((await only(r)).editTs, 0);
+
+      await db.setMeta('sync_dirty', '0');
+      await r.setCategory(await only(r), 'Groceries', forPayee: false);
+      expect((await only(r)).editTs, greaterThan(0));
+      expect(await db.getMeta('sync_dirty'), '1');
+    });
+
+    test('a payee rule stamps rules.ts and leaves edit_ts alone', () async {
+      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]);
+      await r.syncSms();
+      await r.setCategory(await only(r), 'Groceries', forPayee: true);
+      final t = await only(r);
+      expect(t.category, 'Groceries');
+      expect(t.editTs, 0);
+      expect((await db.rulesRows()).single['ts'], greaterThan(0));
+    });
+
+    test('hide and unhide stamp edit_ts and set sync_dirty', () async {
+      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]);
+      await r.syncSms();
+      await db.setMeta('sync_dirty', '0');
+      await r.hide(await only(r));
+      final hidden = (await r.hidden()).single;
+      expect(hidden.hidden, isTrue);
+      expect(hidden.editTs, greaterThan(0));
+      expect(await db.getMeta('sync_dirty'), '1');
+      await r.unhide(hidden);
+      expect((await only(r)).hidden, isFalse);
+    });
+
+    test('manual entries carry the device id and an edit stamp', () async {
+      final r = repo(const []);
+      final id = await db.deviceId();
+      expect(id, hasLength(32));
+      expect(await db.deviceId(), id, reason: 'generated once');
+      await r.addManual(amountPaise: 100, isDebit: true, counterparty: 'Cash',
+          category: 'Food', time: DateTime(2026, 10, 1));
+      final t = await only(r);
+      expect(t.key, startsWith('manual:$id:'));
+      expect(t.editTs, greaterThan(0));
+    });
+
+    test('pairing never touches an edited row and stamps nothing itself', () async {
+      const hdfcOut = 'Sent Rs.5,000.00\nFrom HDFC Bank A/C *1234\nTo me@oksbi\n'
+          'On 03/10/26\nRef 427600000201';
+      const sbiIn = 'Dear SBI UPI User, ur A/cX5678 credited by Rs5000 on 03Oct26 by '
+          '(Ref no 427600000202)';
+      final day = DateTime(2026, 10, 3, 9);
+      final r = repo([
+        RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day),
+        RawSms(id: 2, address: 'AD-SBIUPI', body: sbiIn, date: day),
+      ]);
+      await r.syncSms();
+      final paired = await r.between(DateTime(2026, 10), DateTime(2026, 11));
+      expect(paired.map((t) => t.category), everyElement(Categorizer.selfTransfer));
+      expect(paired.map((t) => t.editTs), everyElement(0), reason: 'pairing is automatic');
+      expect(await db.getMeta('unpaired_ids'), isNull);
+    });
+  });
 }

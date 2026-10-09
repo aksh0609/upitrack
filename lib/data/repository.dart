@@ -245,22 +245,16 @@ class TxnRepository {
 
   /// Labels debit/credit pairs that move money between the user's own
   /// accounts (spec §3.3): same amount, same day, both with an account, and
-  /// different accounts. Only rows still carrying their automatic category
-  /// are touched, so a category the user set by hand is never overridden.
-  /// Returns the number of pairs found.
+  /// different accounts. Only rows the user never touched (`edit_ts == 0`)
+  /// are candidates, so a hand-set category — including taking a row out
+  /// of a pair — is never overridden. Returns the number of pairs found.
   Future<int> pairSelfTransfers(DateTime from, DateTime to) async {
-    final rules = await _db.rules();
     final txns = await _db.between(from, to); // newest first
-    final unpaired = await _unpairedIds();
-    bool automatic(Txn t) =>
-        t.category ==
-        Categorizer.categorizeWith(rules, t.counterparty, isDebit: t.isDebit);
     final candidates = txns
         .where((t) =>
             t.account != null &&
-            !unpaired.contains(t.id) &&
-            t.category != Categorizer.selfTransfer &&
-            automatic(t))
+            t.editTs == 0 &&
+            t.category != Categorizer.selfTransfer)
         .toList();
 
     final usedCredits = <int>{};
@@ -271,21 +265,14 @@ class TxnRepository {
         if (c.amountPaise != d.amountPaise) continue;
         if (_ymd(c.time) != _ymd(d.time)) continue;
         if (c.bank == d.bank && c.account == d.account) continue;
-        await _db.setCategory(d.id!, Categorizer.selfTransfer);
-        await _db.setCategory(c.id!, Categorizer.selfTransfer);
+        await _db.setCategory(d.id!, Categorizer.selfTransfer, byUser: false);
+        await _db.setCategory(c.id!, Categorizer.selfTransfer, byUser: false);
         usedCredits.add(c.id!);
         pairs++;
         break;
       }
     }
     return pairs;
-  }
-
-  /// Ids the user manually took out of a pair; they are never re-paired.
-  // ponytail: unpaired_ids grows by one per manual un-pair; Phase 2's edit_ts replaces it.
-  Future<Set<int>> _unpairedIds() async {
-    final raw = await _db.getMeta('unpaired_ids') ?? '';
-    return raw.split(',').where((s) => s.isNotEmpty).map(int.parse).toSet();
   }
 
   /// Runs [pairSelfTransfers] over the days around rows a sync or import
@@ -312,12 +299,6 @@ class TxnRepository {
 
   Future<void> setCategory(Txn t, String category,
       {required bool forPayee}) async {
-    if (t.category == Categorizer.selfTransfer &&
-        category != Categorizer.selfTransfer) {
-      final ids = await _unpairedIds()
-        ..add(t.id!);
-      await _db.setMeta('unpaired_ids', ids.join(','));
-    }
     // Spec §3.3: Self transfer is never a payee rule.
     if (forPayee && category != Categorizer.selfTransfer) {
       await _db.setCategoryForPayee(t.counterparty, category);
@@ -352,19 +333,22 @@ class TxnRepository {
     required String category,
     required DateTime time,
     String? raw,
-  }) =>
-      _db.insertAll([
-        Txn(
-          key: 'manual:${DateTime.now().microsecondsSinceEpoch}',
-          amountPaise: amountPaise,
-          isDebit: isDebit,
-          counterparty: counterparty,
-          channel: 'Cash',
-          category: category,
-          time: time,
-          raw: raw,
-          manual: true,
-          source: 'manual',
-        ),
-      ]);
+  }) async {
+    final now = DateTime.now();
+    await _db.insertAll([
+      Txn(
+        key: 'manual:${await _db.deviceId()}:${now.microsecondsSinceEpoch}',
+        amountPaise: amountPaise,
+        isDebit: isDebit,
+        counterparty: counterparty,
+        channel: 'Cash',
+        category: category,
+        time: time,
+        raw: raw,
+        manual: true,
+        source: 'manual',
+        editTs: now.millisecondsSinceEpoch,
+      ),
+    ]);
+  }
 }
