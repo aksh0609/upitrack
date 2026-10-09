@@ -52,8 +52,18 @@ class StatementParser {
   // ------------------------------------------------------------------ dates
   static const String _mon = 'jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec';
   static const List<String> _monthNames = [
-    'jan', 'feb', 'mar', 'apr', 'may', 'jun',
-    'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+    'jan',
+    'feb',
+    'mar',
+    'apr',
+    'may',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'oct',
+    'nov',
+    'dec',
   ];
 
   /// 03/10/26, 03-10-2026, 03.10.2026
@@ -62,7 +72,9 @@ class StatementParser {
 
   /// 03 Oct 2026, 03-Oct-26, 03Oct26, 3 October, 2026
   static final RegExp _dayMonDate = RegExp(
-    r'(?<!\d)(\d{1,2})[\s\-\/]?(' + _mon + r')[a-z]*\.?[\s\-\/,]*(\d{4}|\d{2})(?!\d)',
+    r'(?<!\d)(\d{1,2})[\s\-\/]?(' +
+        _mon +
+        r')[a-z]*\.?[\s\-\/,]*(\d{4}|\d{2})(?!\d)',
     caseSensitive: false,
   );
 
@@ -79,8 +91,8 @@ class StatementParser {
 
   // ---------------------------------------------------------------- amounts
   /// Amounts with exactly two decimals: 250.00, 9,750.00, 1,25,000.00.
-  static final RegExp _decimalAmount = RegExp(
-      r'(?<![\d.,])(\d{1,3}(?:,\d{2,3})+\.\d{2}|\d+\.\d{2})(?!\d|\.\d)');
+  static final RegExp _decimalAmount =
+      RegExp(r'(?<![\d.,])(\d{1,3}(?:,\d{2,3})+\.\d{2}|\d+\.\d{2})(?!\d|\.\d)');
 
   /// ₹250, ₹1,250.50 (UPI app statements).
   static final RegExp _rupeeAmount =
@@ -92,10 +104,10 @@ class StatementParser {
   );
 
   // -------------------------------------------------------------- direction
-  static final RegExp _debitMark = RegExp(
-      r'\b(?:dr|debit|debited|withdrawal)\b', caseSensitive: false);
-  static final RegExp _creditMark = RegExp(
-      r'\b(?:cr|credit|credited|deposit)\b', caseSensitive: false);
+  static final RegExp _debitMark =
+      RegExp(r'\b(?:dr|debit|debited|withdrawal)\b', caseSensitive: false);
+  static final RegExp _creditMark =
+      RegExp(r'\b(?:cr|credit|credited|deposit)\b', caseSensitive: false);
 
   /// Lines that end a transaction row: page headers, totals, footers.
   static final RegExp _stopLine = RegExp(
@@ -125,10 +137,41 @@ class StatementParser {
 
   /// Narration words that are never the payee.
   static const Set<String> _noise = {
-    'upi', 'dr', 'cr', 'p2m', 'p2a', 'to', 'by', 'transfer', 'trf',
-    'payment', 'pay', 'paid', 'imps', 'neft', 'rtgs', 'ach', 'nach', 'mmt',
-    'inb', 'ib', 'ref', 'txn', 'sent', 'from', 'collect', 'upiintent',
-    'mob', 'mb', 'bil', 'onl', 'pos', 'na', 'none', 'others', 'other',
+    'upi',
+    'dr',
+    'cr',
+    'p2m',
+    'p2a',
+    'to',
+    'by',
+    'transfer',
+    'trf',
+    'payment',
+    'pay',
+    'paid',
+    'imps',
+    'neft',
+    'rtgs',
+    'ach',
+    'nach',
+    'mmt',
+    'inb',
+    'ib',
+    'ref',
+    'txn',
+    'sent',
+    'from',
+    'collect',
+    'upiintent',
+    'mob',
+    'mb',
+    'bil',
+    'onl',
+    'pos',
+    'na',
+    'none',
+    'others',
+    'other',
   };
 
   // ============================================================== PDF text
@@ -154,10 +197,18 @@ class StatementParser {
         continue;
       }
       final clean = _stripDates(body);
-      final rupees = _rupeeAmount.allMatches(clean).map((m) => _toPaise(m.group(1))).whereType<int>().toList();
+      final rupees = _rupeeAmount
+          .allMatches(clean)
+          .map((m) => _toPaise(m.group(1)))
+          .whereType<int>()
+          .toList();
       final values = rupees.isNotEmpty
           ? rupees
-          : _decimalAmount.allMatches(clean).map((m) => _toPaise(m.group(1))).whereType<int>().toList();
+          : _decimalAmount
+              .allMatches(clean)
+              .map((m) => _toPaise(m.group(1)))
+              .whereType<int>()
+              .toList();
 
       int? amount;
       int? balance;
@@ -167,7 +218,8 @@ class StatementParser {
       } else if (rupees.isNotEmpty || values.length == 1) {
         amount = values.first;
       } else if (values.length >= 3 &&
-          (values[values.length - 3] == 0) != (values[values.length - 2] == 0)) {
+          (values[values.length - 3] == 0) !=
+              (values[values.length - 2] == 0)) {
         // Withdrawal and deposit columns, one of them 0.00.
         balance = values.last;
         if (values[values.length - 3] != 0) {
@@ -195,7 +247,9 @@ class StatementParser {
       final amt = amounts[i];
       final bal = balances[i];
       if (amt == null || bal == null) continue;
-      if (_fits(i == 0 ? opening : balances[i - 1], amt, bal) != null) forward++;
+      if (_fits(i == 0 ? opening : balances[i - 1], amt, bal) != null) {
+        forward++;
+      }
       if (_fits(i == n - 1 ? opening : balances[i + 1], amt, bal) != null) {
         backward++;
       }
@@ -317,7 +371,8 @@ class StatementParser {
     if (m == null) return DateTime(date.year, date.month, date.day, 12);
     var hour = int.parse(m.group(1)!) % 12;
     if (m.group(3)!.toLowerCase() == 'pm') hour += 12;
-    return DateTime(date.year, date.month, date.day, hour, int.parse(m.group(2)!));
+    return DateTime(
+        date.year, date.month, date.day, hour, int.parse(m.group(2)!));
   }
 
   static String _stripDates(String s) => s
@@ -366,7 +421,8 @@ class StatementParser {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     v = v.replaceAll(RegExp(r'^[\s.,:;]+|[\s.,:;]+$'), '');
-    if (v.length < 3 || !RegExp(r'[a-z]{3}', caseSensitive: false).hasMatch(v)) {
+    if (v.length < 3 ||
+        !RegExp(r'[a-z]{3}', caseSensitive: false).hasMatch(v)) {
       return null;
     }
     if (_ifsc.hasMatch(v)) return null;
@@ -567,9 +623,14 @@ class _Columns {
         c.contains('deposit') ||
         (c.contains('credit') && !c.contains('debit')) ||
         c == 'cr');
-    final amount = find((c) => c.contains('amount') && !c.contains('withdrawal') && !c.contains('deposit'));
-    final type = find((c) => c == 'type' || c.contains('dr/cr') || c.contains('cr/dr'));
-    final ref = find((c) => c.contains('ref') || c.contains('chq') || c.contains('utr'));
+    final amount = find((c) =>
+        c.contains('amount') &&
+        !c.contains('withdrawal') &&
+        !c.contains('deposit'));
+    final type =
+        find((c) => c == 'type' || c.contains('dr/cr') || c.contains('cr/dr'));
+    final ref = find(
+        (c) => c.contains('ref') || c.contains('chq') || c.contains('utr'));
 
     if (date == null || narration == null) return null;
     if ((debit == null || credit == null) && amount == null) return null;

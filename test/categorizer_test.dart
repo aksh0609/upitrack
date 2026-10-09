@@ -33,9 +33,12 @@ void main() {
 
     test('categorizeWith prefers the remembered rule for debits only', () {
       const rules = {'SWIGGY': 'Groceries'};
-      expect(Categorizer.categorizeWith(rules, 'SWIGGY', isDebit: true), 'Groceries');
-      expect(Categorizer.categorizeWith(rules, 'ZOMATO', isDebit: true), 'Food');
-      expect(Categorizer.categorizeWith(rules, 'SWIGGY', isDebit: false), 'Income');
+      expect(Categorizer.categorizeWith(rules, 'SWIGGY', isDebit: true),
+          'Groceries');
+      expect(
+          Categorizer.categorizeWith(rules, 'ZOMATO', isDebit: true), 'Food');
+      expect(Categorizer.categorizeWith(rules, 'SWIGGY', isDebit: false),
+          'Income');
     });
   });
 
@@ -72,9 +75,12 @@ void main() {
     test('byMerchant groups payee spellings and sorts by total', () {
       final s = MonthSummary.from([
         txn(10000, true, 'Food', DateTime(2026, 10, 2), counterparty: 'SWIGGY'),
-        txn(20000, true, 'Food', DateTime(2026, 10, 3), counterparty: 'swiggy.stores@axb'),
-        txn(50000, true, 'Shopping', DateTime(2026, 10, 4), counterparty: 'AMAZON PAY'),
-        txn(99900, false, 'Income', DateTime(2026, 10, 4), counterparty: 'AMAZON PAY'),
+        txn(20000, true, 'Food', DateTime(2026, 10, 3),
+            counterparty: 'swiggy.stores@axb'),
+        txn(50000, true, 'Shopping', DateTime(2026, 10, 4),
+            counterparty: 'AMAZON PAY'),
+        txn(99900, false, 'Income', DateTime(2026, 10, 4),
+            counterparty: 'AMAZON PAY'),
       ], now: DateTime(2026, 10, 5));
       expect(s.byMerchant.keys.toList(), ['Amazon', 'Swiggy']);
       expect(s.byMerchant['Swiggy'], (count: 2, totalPaise: 30000));
@@ -83,8 +89,10 @@ void main() {
 
     test('self transfers count for nothing', () {
       final s = MonthSummary.from([
-        txn(500000, true, Categorizer.selfTransfer, DateTime(2026, 10, 2), counterparty: 'me@okaxis'),
-        txn(500000, false, Categorizer.selfTransfer, DateTime(2026, 10, 2), counterparty: 'HDFC'),
+        txn(500000, true, Categorizer.selfTransfer, DateTime(2026, 10, 2),
+            counterparty: 'me@okaxis'),
+        txn(500000, false, Categorizer.selfTransfer, DateTime(2026, 10, 2),
+            counterparty: 'HDFC'),
         txn(10000, true, 'Food', DateTime(2026, 10, 2), counterparty: 'SWIGGY'),
       ], now: DateTime(2026, 10, 2));
       expect(s.spentPaise, 10000);
@@ -106,7 +114,9 @@ void main() {
           time: time,
         );
 
-    test('one entry per month ending at lastMonth, zeros kept, self transfers out', () {
+    test(
+        'one entry per month ending at lastMonth, zeros kept, self transfers out',
+        () {
       final rows = monthlyTotals([
         spend(10000, DateTime(2026, 10, 3)),
         spend(5000, DateTime(2026, 10, 20)),
@@ -115,8 +125,12 @@ void main() {
         spend(1, DateTime(2026, 4, 30)), // before the window
       ], DateTime(2026, 10));
       expect(rows.map((r) => r.month), [
-        DateTime(2026, 5), DateTime(2026, 6), DateTime(2026, 7),
-        DateTime(2026, 8), DateTime(2026, 9), DateTime(2026, 10),
+        DateTime(2026, 5),
+        DateTime(2026, 6),
+        DateTime(2026, 7),
+        DateTime(2026, 8),
+        DateTime(2026, 9),
+        DateTime(2026, 10),
       ]);
       expect(rows.map((r) => r.paise), [0, 0, 0, 7000, 0, 15000]);
     });

@@ -27,5 +27,5 @@ const List<CategoryInfo> kCategories = [
   CategoryInfo('Others', Icons.category, Color(0xFF8D99AE)),
 ];
 
-CategoryInfo categoryOf(String name) =>
-    kCategories.firstWhere((c) => c.name == name, orElse: () => kCategories.last);
+CategoryInfo categoryOf(String name) => kCategories
+    .firstWhere((c) => c.name == name, orElse: () => kCategories.last);

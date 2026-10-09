@@ -187,32 +187,51 @@ void main() {
 
   group('looksLikeTransaction', () {
     test('gift card and wallet balance notices are not transactions', () {
-      const myntra = 'Dear Customer, your payment of Rs. 2716 using Myntra Gift Card '
+      const myntra =
+          'Dear Customer, your payment of Rs. 2716 using Myntra Gift Card '
           '************4827 balance is successful. Updated Myntra Gift Card balance: Rs. 1284.0000.';
-      const flipkart = 'Flipkart Update: Your Gift Card ending with 02391 has a remaining '
+      const flipkart =
+          'Flipkart Update: Your Gift Card ending with 02391 has a remaining '
           'balance of Rs.242.00 and will expire on 12/07/2026. View details: https://flipkart.com/helpcentre';
       expect(SmsParser.looksLikeTransaction('BG-MYNTRA-S', myntra), isFalse);
       expect(SmsParser.looksLikeTransaction('BG-FLPKRT-S', flipkart), isFalse);
       expect(SmsParser.parse('BG-MYNTRA-S', myntra), isNull);
     });
     test('unfamiliar bank wording with an amount', () {
-      const body = 'Your a/c 1234 has a withdrawal of INR 320.00 at 10:12 towards UPI/9876';
-      expect(SmsParser.parse('AD-UCOBNK', body), isNull, reason: 'not parsed today');
+      const body =
+          'Your a/c 1234 has a withdrawal of INR 320.00 at 10:12 towards UPI/9876';
+      expect(SmsParser.parse('AD-UCOBNK', body), isNull,
+          reason: 'not parsed today');
       expect(SmsParser.looksLikeTransaction('AD-UCOBNK', body), isTrue);
     });
 
     test('debit word without a currency symbol', () {
-      expect(SmsParser.looksLikeTransaction('AD-SBIUPI', 'A/c X1234 debited 300 for a new format'), isTrue);
+      expect(
+          SmsParser.looksLikeTransaction(
+              'AD-SBIUPI', 'A/c X1234 debited 300 for a new format'),
+          isTrue);
     });
 
     test('OTP, promotion and personal numbers are not transactions', () {
-      expect(SmsParser.looksLikeTransaction('VM-HDFCBK', '123456 is your OTP for Rs 500'), isFalse);
-      expect(SmsParser.looksLikeTransaction('AD-PAYTMB', 'Get Rs 100 cashback! Limited offer.'), isFalse);
-      expect(SmsParser.looksLikeTransaction('+919876543210', 'Rs 5000 credited to your A/c'), isFalse);
+      expect(
+          SmsParser.looksLikeTransaction(
+              'VM-HDFCBK', '123456 is your OTP for Rs 500'),
+          isFalse);
+      expect(
+          SmsParser.looksLikeTransaction(
+              'AD-PAYTMB', 'Get Rs 100 cashback! Limited offer.'),
+          isFalse);
+      expect(
+          SmsParser.looksLikeTransaction(
+              '+919876543210', 'Rs 5000 credited to your A/c'),
+          isFalse);
     });
 
     test('no amount and no money word', () {
-      expect(SmsParser.looksLikeTransaction('VM-HDFCBK', 'Thank you for banking with us.'), isFalse);
+      expect(
+          SmsParser.looksLikeTransaction(
+              'VM-HDFCBK', 'Thank you for banking with us.'),
+          isFalse);
     });
 
     test('merchant and telecom SMS with an amount are not transactions', () {
@@ -223,15 +242,18 @@ void main() {
         'Zomato: refund of Rs 180 initiated to your original payment mode.',
         'Jio: Rs 239 pack activated. Valid 28 days.',
       ]) {
-        expect(SmsParser.looksLikeTransaction('VM-SWIGGY', body), isFalse, reason: body);
+        expect(SmsParser.looksLikeTransaction('VM-SWIGGY', body), isFalse,
+            reason: body);
       }
     });
   });
 
   group('firstAmountPaise', () {
     test('first transaction amount, skipping balances', () {
-      expect(SmsParser.firstAmountPaise('withdrawal of INR 320.00 towards UPI'), 32000);
-      expect(SmsParser.firstAmountPaise('A/c debited by 120.0 trf to X'), 12000);
+      expect(SmsParser.firstAmountPaise('withdrawal of INR 320.00 towards UPI'),
+          32000);
+      expect(
+          SmsParser.firstAmountPaise('A/c debited by 120.0 trf to X'), 12000);
       expect(SmsParser.firstAmountPaise('Avl Bal Rs.10,000.00 only'), isNull);
     });
   });

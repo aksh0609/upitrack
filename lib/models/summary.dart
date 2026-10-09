@@ -40,7 +40,10 @@ class MonthSummary {
         byCategory[t.category] = (byCategory[t.category] ?? 0) + t.amountPaise;
         final m = merchantOf(t.counterparty);
         final prev = byMerchant[m] ?? (count: 0, totalPaise: 0);
-        byMerchant[m] = (count: prev.count + 1, totalPaise: prev.totalPaise + t.amountPaise);
+        byMerchant[m] = (
+          count: prev.count + 1,
+          totalPaise: prev.totalPaise + t.amountPaise
+        );
         if (t.time.year == today.year &&
             t.time.month == today.month &&
             t.time.day == today.day) {
@@ -81,7 +84,9 @@ List<({DateTime month, int paise})> monthlyTotals(
     var sum = 0;
     for (final t in txns) {
       if (!t.isDebit || t.category == Categorizer.selfTransfer) continue;
-      if (!t.time.isBefore(month) && t.time.isBefore(next)) sum += t.amountPaise;
+      if (!t.time.isBefore(month) && t.time.isBefore(next)) {
+        sum += t.amountPaise;
+      }
     }
     rows.add((month: month, paise: sum));
   }

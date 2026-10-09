@@ -15,7 +15,8 @@ void main() {
 
   test('matches payee text and merchant name, case-insensitive', () {
     expect(matchesSearch(txn('MYNTRA DESIGNS'), 'myntra'), isTrue);
-    expect(matchesSearch(txn('amazonpay@apl'), 'Amazon'), isTrue); // via merchant
+    expect(
+        matchesSearch(txn('amazonpay@apl'), 'Amazon'), isTrue); // via merchant
     expect(matchesSearch(txn('rahul@okaxis'), 'RAHUL'), isTrue);
     expect(matchesSearch(txn('SWIGGY'), 'zomato'), isFalse);
   });

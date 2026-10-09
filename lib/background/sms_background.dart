@@ -27,13 +27,15 @@ Future<void> runSmsBackground() async {
   await channel.invokeMethod<void>('ready');
 }
 
-Future<void> notifyForSms({required String address, required String body}) async {
+Future<void> notifyForSms(
+    {required String address, required String body}) async {
   final parsed = SmsParser.parse(address, body);
   if (parsed == null) return;
 
   final rules = await _rules();
   final who = parsed.counterparty ?? 'Unknown';
-  final category = Categorizer.categorizeWith(rules, who, isDebit: parsed.isDebit);
+  final category =
+      Categorizer.categorizeWith(rules, who, isDebit: parsed.isDebit);
   final text = notificationText(parsed, category);
 
   final plugin = FlutterLocalNotificationsPlugin();

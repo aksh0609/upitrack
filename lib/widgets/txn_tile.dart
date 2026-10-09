@@ -6,7 +6,8 @@ import '../models/txn.dart';
 import '../util/format.dart';
 
 class TxnTile extends StatelessWidget {
-  const TxnTile({super.key, required this.txn, required this.onTap, this.onHide});
+  const TxnTile(
+      {super.key, required this.txn, required this.onTap, this.onHide});
 
   final Txn txn;
   final VoidCallback onTap;
@@ -31,7 +32,8 @@ class TxnTile extends StatelessWidget {
         backgroundColor: cat.color.withValues(alpha: 0.15),
         child: Icon(cat.icon, color: cat.color, size: 20),
       ),
-      title: Text(txn.counterparty, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title:
+          Text(txn.counterparty, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(details, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -40,7 +42,8 @@ class TxnTile extends StatelessWidget {
             '${txn.isDebit ? '-' : '+'}${formatPaise(txn.amountPaise)}',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: txn.isDebit ? scheme.onSurface : const Color(0xFF2E7D32),
+                  color:
+                      txn.isDebit ? scheme.onSurface : const Color(0xFF2E7D32),
                 ),
           ),
           if (onHide != null)

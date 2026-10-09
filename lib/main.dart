@@ -48,7 +48,11 @@ Future<void> main() async {
 Future<void> smsBackground() => runSmsBackground();
 
 class UpiTrackApp extends StatelessWidget {
-  const UpiTrackApp({super.key, required this.repository, this.updateChecker, this.syncController});
+  const UpiTrackApp(
+      {super.key,
+      required this.repository,
+      this.updateChecker,
+      this.syncController});
 
   final TxnRepository repository;
   final UpdateChecker? updateChecker;

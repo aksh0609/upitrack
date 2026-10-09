@@ -52,7 +52,8 @@ class UpdateChecker {
   /// A newer release the user hasn't dismissed, or null.
   Future<UpdateInfo?> check({DateTime? now}) async {
     final t = now ?? DateTime.now();
-    final last = int.tryParse(await _db.getMeta('update_checked_ms') ?? '') ?? 0;
+    final last =
+        int.tryParse(await _db.getMeta('update_checked_ms') ?? '') ?? 0;
     if (t.millisecondsSinceEpoch - last >= interval.inMilliseconds) {
       await _fetch(t);
     }
@@ -60,22 +61,23 @@ class UpdateChecker {
     final url = await _db.getMeta('update_url');
     if (tag == null || url == null) return null;
     if (tag == await _db.getMeta('update_dismissed')) return null;
-    return isNewerVersion(tag, currentVersion) ? UpdateInfo(tag: tag, url: url) : null;
+    return isNewerVersion(tag, currentVersion)
+        ? UpdateInfo(tag: tag, url: url)
+        : null;
   }
 
   Future<void> _fetch(DateTime now) async {
     try {
-      final r = await _client
-          .get(
-            Uri.https('api.github.com', '/repos/$repo/releases/latest'),
-            headers: {'Accept': 'application/vnd.github+json'},
-          )
-          .timeout(const Duration(seconds: 10));
+      final r = await _client.get(
+        Uri.https('api.github.com', '/repos/$repo/releases/latest'),
+        headers: {'Accept': 'application/vnd.github+json'},
+      ).timeout(const Duration(seconds: 10));
       if (r.statusCode != 200) return;
       final json = jsonDecode(r.body) as Map<String, dynamic>;
       await _db.setMeta('update_tag', json['tag_name'] as String);
       await _db.setMeta('update_url', json['html_url'] as String);
-      await _db.setMeta('update_checked_ms', now.millisecondsSinceEpoch.toString());
+      await _db.setMeta(
+          'update_checked_ms', now.millisecondsSinceEpoch.toString());
     } catch (_) {
       // Offline, rate-limited or GitHub down: try again on the next open.
     }

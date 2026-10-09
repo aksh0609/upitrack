@@ -78,8 +78,10 @@ class AppDb {
   /// they are stamped as edits; so are the ids Phase 1b kept in
   /// `unpaired_ids`. Self-transfer rows stay automatic.
   static Future<void> _upgradeToV3(Database db) async {
-    await db.execute('ALTER TABLE txns ADD COLUMN edit_ts INTEGER NOT NULL DEFAULT 0');
-    await db.execute('ALTER TABLE rules ADD COLUMN ts INTEGER NOT NULL DEFAULT 0');
+    await db.execute(
+        'ALTER TABLE txns ADD COLUMN edit_ts INTEGER NOT NULL DEFAULT 0');
+    await db
+        .execute('ALTER TABLE rules ADD COLUMN ts INTEGER NOT NULL DEFAULT 0');
     final now = DateTime.now().millisecondsSinceEpoch;
     await db.update('rules', {'ts': now});
 
@@ -92,10 +94,12 @@ class AppDb {
         columns: ['id', 'counterparty', 'is_debit', 'category'])) {
       final category = r['category'] as String;
       if (category == Categorizer.selfTransfer) continue;
-      final guess = Categorizer.categorizeWith(rules, r['counterparty'] as String,
+      final guess = Categorizer.categorizeWith(
+          rules, r['counterparty'] as String,
           isDebit: (r['is_debit'] as int) == 1);
       if (category != guess) {
-        batch.update('txns', {'edit_ts': now}, where: 'id = ?', whereArgs: [r['id']]);
+        batch.update('txns', {'edit_ts': now},
+            where: 'id = ?', whereArgs: [r['id']]);
       }
     }
     final unpaired = await db.query('meta', where: "k = 'unpaired_ids'");
@@ -104,7 +108,8 @@ class AppDb {
         if (s.isEmpty) continue;
         final id = int.tryParse(s);
         if (id == null) continue;
-        batch.update('txns', {'edit_ts': now}, where: 'id = ?', whereArgs: [id]);
+        batch.update('txns', {'edit_ts': now},
+            where: 'id = ?', whereArgs: [id]);
       }
       batch.delete('meta', where: "k = 'unpaired_ids'");
     }
@@ -116,7 +121,8 @@ class AppDb {
   /// A separate read-only connection for the background SMS path. Not a
   /// single instance, so closing it never touches the app's own connection,
   /// and no version/migration hooks run. Throws if the file doesn't exist.
-  static Future<AppDb> openReadOnly({DatabaseFactory? factory, String? path}) async {
+  static Future<AppDb> openReadOnly(
+      {DatabaseFactory? factory, String? path}) async {
     final f = factory ?? databaseFactory;
     final db = await f.openDatabase(
       path ?? p.join(await f.getDatabasesPath(), 'upitrack.db'),
@@ -131,9 +137,9 @@ class AppDb {
 
   /// Spec §4.3: every write that changes txns or rules flags the device for
   /// upload. [e] is the connection or the transaction doing the write.
-  static Future<void> _markDirty(DatabaseExecutor e) => e.insert(
-      'meta', {'k': 'sync_dirty', 'v': '1'},
-      conflictAlgorithm: ConflictAlgorithm.replace);
+  static Future<void> _markDirty(DatabaseExecutor e) =>
+      e.insert('meta', {'k': 'sync_dirty', 'v': '1'},
+          conflictAlgorithm: ConflictAlgorithm.replace);
 
   Future<int> _count() async =>
       Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM txns')) ??
@@ -179,10 +185,10 @@ class AppDb {
 
   /// Accounts seen in the SMS, most-used first.
   Future<List<AccountRef>> accounts() async {
-    final rows = await _db.rawQuery(
-        'SELECT bank, account, COUNT(*) AS n FROM txns '
-        'WHERE account IS NOT NULL AND hidden = 0 '
-        'GROUP BY bank, account ORDER BY n DESC');
+    final rows =
+        await _db.rawQuery('SELECT bank, account, COUNT(*) AS n FROM txns '
+            'WHERE account IS NOT NULL AND hidden = 0 '
+            'GROUP BY bank, account ORDER BY n DESC');
     return [
       for (final r in rows)
         (bank: r['bank'] as String?, last4: r['account'] as String),
@@ -208,8 +214,8 @@ class AppDb {
       await txn.update('txns', {'category': category},
           where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ?',
           whereArgs: [counterparty, now]);
-      await txn.insert(
-          'rules', {'counterparty': counterparty, 'category': category, 'ts': now},
+      await txn.insert('rules',
+          {'counterparty': counterparty, 'category': category, 'ts': now},
           conflictAlgorithm: ConflictAlgorithm.replace);
       await _markDirty(txn);
     });
@@ -228,7 +234,8 @@ class AppDb {
 
   /// Everything the user hid, newest first, across all months.
   Future<List<Txn>> hidden() async {
-    final rows = await _db.query('txns', where: 'hidden = 1', orderBy: 'ts DESC');
+    final rows =
+        await _db.query('txns', where: 'hidden = 1', orderBy: 'ts DESC');
     return rows.map(Txn.fromMap).toList();
   }
 
@@ -255,14 +262,15 @@ class AppDb {
     final existing = await getMeta('device_id');
     if (existing != null) return existing;
     final rng = Random.secure();
-    final id = List.generate(16, (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+    final id = List.generate(
+        16, (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
     await setMeta('device_id', id);
     return id;
   }
 
-  Future<void> setMeta(String k, String v) => _db.insert(
-      'meta', {'k': k, 'v': v},
-      conflictAlgorithm: ConflictAlgorithm.replace);
+  Future<void> setMeta(String k, String v) =>
+      _db.insert('meta', {'k': k, 'v': v},
+          conflictAlgorithm: ConflictAlgorithm.replace);
 
   Future<void> deleteMeta(String k) =>
       _db.delete('meta', where: 'k = ?', whereArgs: [k]);
@@ -298,12 +306,17 @@ class AppDb {
         final t = Map<String, Object?>.from(raw as Map)..remove('id');
         final action = mergeTxn(local[t['key']], t);
         if (action == TxnMerge.insert) {
-          await txn.insert('txns', t, conflictAlgorithm: ConflictAlgorithm.ignore);
+          await txn.insert('txns', t,
+              conflictAlgorithm: ConflictAlgorithm.ignore);
           changed = true;
         } else if (action == TxnMerge.update) {
           await txn.update(
             'txns',
-            {'category': t['category'], 'hidden': t['hidden'] ?? 0, 'edit_ts': t['edit_ts'] ?? 0},
+            {
+              'category': t['category'],
+              'hidden': t['hidden'] ?? 0,
+              'edit_ts': t['edit_ts'] ?? 0
+            },
             where: 'key = ?',
             whereArgs: [t['key']],
           );
@@ -317,7 +330,8 @@ class AppDb {
       for (final raw in snapshot['rules'] as List) {
         final r = Map<String, Object?>.from(raw as Map);
         if (!ruleWins(localRules[r['counterparty']], r)) continue;
-        await txn.insert('rules', r, conflictAlgorithm: ConflictAlgorithm.replace);
+        await txn.insert('rules', r,
+            conflictAlgorithm: ConflictAlgorithm.replace);
         await txn.update('txns', {'category': r['category']},
             where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ?',
             whereArgs: [r['counterparty'], r['ts']]);
@@ -326,8 +340,14 @@ class AppDb {
       // A row that arrived after a local rule was set still follows it.
       for (final r in await txn.query('rules')) {
         final n = await txn.update('txns', {'category': r['category']},
-            where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ? AND category != ? AND category != ?',
-            whereArgs: [r['counterparty'], r['ts'], r['category'], Categorizer.selfTransfer]);
+            where:
+                'counterparty = ? AND is_debit = 1 AND edit_ts < ? AND category != ? AND category != ?',
+            whereArgs: [
+              r['counterparty'],
+              r['ts'],
+              r['category'],
+              Categorizer.selfTransfer
+            ]);
         if (n > 0) changed = true;
       }
       if (changed) await _markDirty(txn);
@@ -342,20 +362,24 @@ class AppDb {
     if (rows.isEmpty) return;
     final batch = _db.batch();
     for (final u in rows) {
-      batch.insert('unparsed', u.toMap(), conflictAlgorithm: ConflictAlgorithm.ignore);
+      batch.insert('unparsed', u.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     await batch.commit(noResult: true);
   }
 
   Future<List<UnparsedSms>> openUnparsed() async {
-    final rows = await _db.query('unparsed', where: "state = 'open'", orderBy: 'ts DESC');
+    final rows = await _db.query('unparsed',
+        where: "state = 'open'", orderBy: 'ts DESC');
     return rows.map(UnparsedSms.fromMap).toList();
   }
 
-  Future<void> setUnparsedState(int id, String state) =>
-      _db.update('unparsed', {'state': state}, where: 'id = ?', whereArgs: [id]);
+  Future<void> setUnparsedState(int id, String state) => _db
+      .update('unparsed', {'state': state}, where: 'id = ?', whereArgs: [id]);
 
   /// Deletes handled rows older than [before]. Open rows are kept.
-  Future<void> purgeUnparsed({required DateTime before}) => _db.delete('unparsed',
-      where: "state != 'open' AND ts < ?", whereArgs: [before.millisecondsSinceEpoch]);
+  Future<void> purgeUnparsed({required DateTime before}) =>
+      _db.delete('unparsed',
+          where: "state != 'open' AND ts < ?",
+          whereArgs: [before.millisecondsSinceEpoch]);
 }

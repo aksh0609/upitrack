@@ -8,7 +8,8 @@ import '../parser/statement_parser.dart';
 
 /// Pick a statement file, unlock it if needed, preview and import.
 /// Returns true if anything was added.
-Future<bool> importStatement(BuildContext context, TxnRepository repository) async {
+Future<bool> importStatement(
+    BuildContext context, TxnRepository repository) async {
   final picked = await FilePicker.platform.pickFiles(
     type: FileType.custom,
     allowedExtensions: StatementReader.extensions,
@@ -30,7 +31,8 @@ Future<bool> importStatement(BuildContext context, TxnRepository repository) asy
       result = await _withProgress(
         context,
         'Reading statement…',
-        StatementReader.read(fileName: file.name, bytes: bytes, password: password),
+        StatementReader.read(
+            fileName: file.name, bytes: bytes, password: password),
       );
       break;
     } on PasswordRequired catch (e) {
@@ -54,7 +56,8 @@ Future<bool> importStatement(BuildContext context, TxnRepository repository) asy
           'your net banking, or a PDF statement from the bank or UPI app.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
     );
@@ -76,7 +79,8 @@ Future<bool> importStatement(BuildContext context, TxnRepository repository) asy
   return summary.added > 0;
 }
 
-Future<T> _withProgress<T>(BuildContext context, String label, Future<T> work) async {
+Future<T> _withProgress<T>(
+    BuildContext context, String label, Future<T> work) async {
   final navigator = Navigator.of(context, rootNavigator: true);
   showDialog<void>(
     context: context,
@@ -86,7 +90,8 @@ Future<T> _withProgress<T>(BuildContext context, String label, Future<T> work) a
       child: AlertDialog(
         content: Row(
           children: [
-            const SizedBox(width: 24, height: 24, child: CircularProgressIndicator()),
+            const SizedBox(
+                width: 24, height: 24, child: CircularProgressIndicator()),
             const SizedBox(width: 20),
             Expanded(child: Text(label)),
           ],
@@ -130,7 +135,9 @@ Future<String?> _askPassword(BuildContext context, {required bool wrong}) {
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
         FilledButton(
           onPressed: () => Navigator.pop(context, controller.text),
           child: const Text('Unlock'),
@@ -154,8 +161,12 @@ Future<bool?> _confirm(BuildContext context, StatementResult result) {
         'Payments already in the app are skipped.',
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Import')),
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Import')),
       ],
     ),
   );

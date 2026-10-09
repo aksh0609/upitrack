@@ -45,13 +45,14 @@ class _MerchantScreenState extends State<MerchantScreen> {
 
   Future<void> _load() async {
     final all = await widget.repository.between(_from, _to);
-    final mine =
-        all.where((t) => merchantOf(t.counterparty) == widget.merchant).toList();
+    final mine = all
+        .where((t) => merchantOf(t.counterparty) == widget.merchant)
+        .toList();
     if (mounted) setState(() => _txns = mine);
   }
 
-  Iterable<Txn> get _debits => (_txns ?? const []).where(
-      (t) => t.isDebit && t.category != Categorizer.selfTransfer);
+  Iterable<Txn> get _debits => (_txns ?? const [])
+      .where((t) => t.isDebit && t.category != Categorizer.selfTransfer);
 
   bool get _canSetCategory => _debits.any((t) => t.canApplyToPayee);
 
@@ -113,7 +114,9 @@ class _MerchantScreenState extends State<MerchantScreen> {
             style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
           Text(
-            thisMonth.length == 1 ? '1 payment' : '${thisMonth.length} payments',
+            thisMonth.length == 1
+                ? '1 payment'
+                : '${thisMonth.length} payments',
             style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 24),

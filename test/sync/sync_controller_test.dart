@@ -103,7 +103,8 @@ void main() {
     expect(keys.key, isNull);
   });
 
-  test('a known account without Drive access stays signed out until the next tap',
+  test(
+      'a known account without Drive access stays signed out until the next tap',
       () async {
     final auth = FakeAuth()
       ..signedIn = true

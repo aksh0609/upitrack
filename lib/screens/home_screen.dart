@@ -34,7 +34,11 @@ enum _Access { checking, granted, denied, permanentlyDenied, iphone, web }
 bool get _isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.repository, this.updateChecker, this.syncController});
+  const HomeScreen(
+      {super.key,
+      required this.repository,
+      this.updateChecker,
+      this.syncController});
 
   final TxnRepository repository;
   final UpdateChecker? updateChecker;
@@ -77,7 +81,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// releases. Web is always current; iPhone updates through TestFlight.
   Future<void> _checkUpdate() async {
     final checker = widget.updateChecker;
-    if (checker == null || kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (checker == null ||
+        kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
     final info = await checker.check();
     if (mounted) setState(() => _update = info);
   }
@@ -188,7 +196,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _unparsedCount = unparsed.length;
         _accounts = accounts;
         // Chips are hidden below two accounts, so a lingering pick would hide rows.
-        if (accounts.length < 2 || !accounts.contains(_account)) _account = null;
+        if (accounts.length < 2 || !accounts.contains(_account)) {
+          _account = null;
+        }
       });
     }
     widget.syncController?.poke();
@@ -414,7 +424,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 onPressed: _requestAccess,
               ),
             if (_access == _Access.iphone && _shortcutCount == 0)
-              _IphoneCard(onSetup: _openIphoneSetup, onImport: _importStatement),
+              _IphoneCard(
+                  onSetup: _openIphoneSetup, onImport: _importStatement),
             if (_access == _Access.web &&
                 widget.syncController != null &&
                 widget.syncController!.state != SyncState.ready)
@@ -455,25 +466,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 listenable: widget.syncController!,
                 builder: (context, _) {
                   final s = widget.syncController!;
-                  final attention = s.state == SyncState.needsPassphrase && s.lastError != null;
-                  if (s.state != SyncState.ready && !attention) return const SizedBox.shrink();
+                  final attention = s.state == SyncState.needsPassphrase &&
+                      s.lastError != null;
+                  if (s.state != SyncState.ready && !attention) {
+                    return const SizedBox.shrink();
+                  }
                   final text = attention
                       ? 'Sync needs attention'
                       : s.syncing
-                      ? 'Syncing…'
-                      : s.lastOk == null
-                          ? 'Not synced yet'
-                          : 'Last synced ${DateFormat('d MMM, HH:mm').format(s.lastOk!)}';
+                          ? 'Syncing…'
+                          : s.lastOk == null
+                              ? 'Not synced yet'
+                              : 'Last synced ${DateFormat('d MMM, HH:mm').format(s.lastOk!)}';
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Row(
                       children: [
-                        Icon(s.lastError == null && !attention ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
-                            size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        Icon(
+                            s.lastError == null && !attention
+                                ? Icons.cloud_done_outlined
+                                : Icons.cloud_off_outlined,
+                            size: 16,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant),
                         const SizedBox(width: 6),
                         Text(text,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant)),
                         if (s.lastError != null)
                           IconButton(
                             iconSize: 16,
@@ -496,7 +520,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  Expanded(child: Text('Top merchants', style: text.titleMedium)),
+                  Expanded(
+                      child: Text('Top merchants', style: text.titleMedium)),
                   if (summary.byMerchant.length > 5)
                     TextButton(
                       onPressed: () => _openMerchants(summary),
@@ -649,7 +674,8 @@ class _WebSyncCard extends StatelessWidget {
                 const Icon(Icons.cloud_sync_outlined),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text('Sync with Google Drive', style: text.titleMedium),
+                  child:
+                      Text('Sync with Google Drive', style: text.titleMedium),
                 ),
               ],
             ),
@@ -809,7 +835,8 @@ class _UpdateCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(onPressed: onDismiss, child: const Text('Later')),
-                FilledButton(onPressed: onDownload, child: const Text('Download')),
+                FilledButton(
+                    onPressed: onDownload, child: const Text('Download')),
               ],
             ),
           ],
