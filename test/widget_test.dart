@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:upitrack/data/db.dart';
 import 'package:upitrack/models/txn.dart';
+import 'package:upitrack/screens/settings_screen.dart';
+import 'package:upitrack/sync/sync_controller.dart';
 import 'package:upitrack/widgets/category_bars.dart';
 import 'package:upitrack/widgets/merchant_bars.dart';
 import 'package:upitrack/widgets/txn_tile.dart';
+
+import 'sync/fakes.dart';
+import 'sync/memory_sync_store.dart';
 
 void main() {
   testWidgets('CategoryBars shows each category with its total',
@@ -60,5 +67,36 @@ void main() {
     expect(find.textContaining('4,500'), findsOneWidget);
     await tester.tap(find.text('Amazon'));
     expect(tapped, 'Amazon');
+  });
+
+  testWidgets('Settings walks from sign-in to a passphrase to ready', (tester) async {
+    sqfliteFfiInit();
+    // Real sqflite I/O never completes in the fake-async zone: run it in real time.
+    final db = (await tester.runAsync(
+        () => AppDb.open(factory: databaseFactoryFfi, path: inMemoryDatabasePath)))!;
+    final store = MemorySyncStore();
+    final sync = SyncController(db,
+        auth: FakeAuth(), keys: MemorySyncKeys(), storeFor: (_) => store, iterations: 1000);
+    await tester.runAsync(sync.start);
+    await tester.pumpWidget(MaterialApp(home: SettingsScreen(sync: sync)));
+
+    expect(find.text('Sign in with Google'), findsOneWidget);
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Sign in with Google'));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Turn on sync'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('passphrase')), 'correct horse');
+    await tester.enterText(find.byKey(const Key('passphrase2')), 'correct horse');
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Turn on sync'));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Sync now'), findsOneWidget);
+    expect(find.textContaining('Last synced'), findsOneWidget);
+    await tester.runAsync(db.close);
   });
 }
