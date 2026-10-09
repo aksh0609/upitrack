@@ -167,7 +167,7 @@ The app is MIT-licensed. PDF reading uses [`syncfusion_flutter_pdf`](https://pub
 - Home-screen widget with today's spend
 - Monthly budget per category with alerts
 - Export to CSV
-- Search and date-range filters
+- Cross-month search and date-range filters
 
 ## License
 

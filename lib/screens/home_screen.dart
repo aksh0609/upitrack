@@ -163,7 +163,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _txns = txns;
         _unparsedCount = unparsed.length;
         _accounts = accounts;
-        if (_account != null && !accounts.contains(_account)) _account = null;
+        // Chips are hidden below two accounts, so a lingering pick would hide rows.
+        if (accounts.length < 2 || !accounts.contains(_account)) _account = null;
       });
     }
   }
@@ -273,7 +274,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('UPI Track'),
+        title: _searching
+            ? TextField(
+                controller: _search,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search payee or merchant',
+                  border: InputBorder.none,
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: _search.clear,
+                        ),
+                ),
+              )
+            : const Text('UPI Track'),
         actions: [
           IconButton(
             tooltip: _searching ? 'Close search' : 'Search',
@@ -413,25 +429,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ],
             const SizedBox(height: 24),
-            if (_searching) ...[
-              const SizedBox(height: 16),
-              TextField(
-                controller: _search,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Search payee or merchant',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _search.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: _search.clear,
-                        ),
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                ),
-              ),
-            ],
             Row(
               children: [
                 Expanded(child: Text('Transactions', style: text.titleMedium)),
