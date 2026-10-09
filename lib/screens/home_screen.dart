@@ -1,29 +1,35 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/repository.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
 import '../util/format.dart';
+import '../util/update_check.dart';
 import '../widgets/category_bars.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/txn_tile.dart';
 import 'add_txn_sheet.dart';
+import 'hidden_screen.dart';
 import 'import_flow.dart';
 import 'iphone_setup_screen.dart';
 import 'txn_sheet.dart';
+import 'unparsed_screen.dart';
 
 /// Android: SMS permission state. iPhone: SMS come in via Shortcuts instead.
 enum _Access { checking, granted, denied, permanentlyDenied, iphone }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.repository});
+  const HomeScreen({super.key, required this.repository, this.updateChecker});
 
   final TxnRepository repository;
+  final UpdateChecker? updateChecker;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -36,6 +42,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _syncing = false;
   bool _upiOnly = false;
   int _shortcutCount = 0;
+  int _unparsedCount = 0;
+  UpdateInfo? _update;
 
   bool get _isCurrentMonth {
     final now = DateTime.now();
@@ -47,6 +55,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkAccess();
+    _checkUpdate();
+  }
+
+  /// Android only: the APK is installed by hand, so tell people about new
+  /// releases. Web is always current; iPhone updates through TestFlight.
+  Future<void> _checkUpdate() async {
+    final checker = widget.updateChecker;
+    if (checker == null || kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    final info = await checker.check();
+    if (mounted) setState(() => _update = info);
+  }
+
+  Future<void> _dismissUpdate() async {
+    await widget.updateChecker!.dismiss(_update!.tag);
+    if (mounted) setState(() => _update = null);
   }
 
   @override
@@ -86,6 +109,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
     final status = await Permission.sms.request();
+    // Android 13+: notifications need their own permission. Older versions
+    // return granted at once.
+    if (status.isGranted) await Permission.notification.request();
     if (!mounted) return;
     setState(() => _access = _accessFrom(status));
     await _sync();
@@ -120,14 +146,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _load() async {
     final txns = await widget.repository
         .between(_month, DateTime(_month.year, _month.month + 1));
-    if (mounted) setState(() => _txns = txns);
+    final unparsed = await widget.repository.unparsed();
+    if (mounted) {
+      setState(() {
+        _txns = txns;
+        _unparsedCount = unparsed.length;
+      });
+    }
   }
 
-  void _snack(String message) {
+  void _snack(String message, {SnackBarAction? action}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(SnackBar(content: Text(message), action: action));
   }
 
   void _changeMonth(int delta) {
@@ -140,6 +172,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (changed == true) await _load();
   }
 
+  Future<void> _hideTxn(Txn t) async {
+    await widget.repository.hide(t);
+    await _load();
+    _snack(
+      'Hidden',
+      action: SnackBarAction(
+        label: 'Undo',
+        onPressed: () async {
+          await widget.repository.unhide(t);
+          await _load();
+        },
+      ),
+    );
+  }
+
   Future<void> _importStatement() async {
     final added = await importStatement(context, widget.repository);
     if (added) await _load();
@@ -149,6 +196,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => IphoneSetupScreen(messagesReceived: _shortcutCount),
     ));
+  }
+
+  Future<void> _openUnparsed() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => UnparsedScreen(repository: widget.repository),
+    ));
+    await _load();
+  }
+
+  Future<void> _openHidden() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => HiddenScreen(repository: widget.repository),
+    ));
+    await _load();
   }
 
   Future<void> _addManual() async {
@@ -185,6 +246,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             onSelected: (v) {
               if (v == 'import') _importStatement();
               if (v == 'iphone') _openIphoneSetup();
+              if (v == 'hidden') _openHidden();
             },
             itemBuilder: (_) => [
               const PopupMenuItem(
@@ -192,6 +254,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: ListTile(
                   leading: Icon(Icons.upload_file),
                   title: Text('Import statement'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'hidden',
+                child: ListTile(
+                  leading: Icon(Icons.visibility_off_outlined),
+                  title: Text('Hidden'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -219,6 +289,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
           children: [
+            if (_update != null)
+              _UpdateCard(
+                info: _update!,
+                onDownload: () => launchUrl(Uri.parse(_update!.url),
+                    mode: LaunchMode.externalApplication),
+                onDismiss: _dismissUpdate,
+              ),
             if (_access == _Access.denied ||
                 _access == _Access.permanentlyDenied)
               _PermissionCard(
@@ -227,6 +304,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             if (_access == _Access.iphone && _shortcutCount == 0)
               _IphoneCard(onSetup: _openIphoneSetup, onImport: _importStatement),
+            if (_unparsedCount > 0)
+              _UnparsedCard(count: _unparsedCount, onTap: _openUnparsed),
             _MonthSwitcher(
               month: _month,
               canGoForward: !_isCurrentMonth,
@@ -278,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ));
       }
-      widgets.add(TxnTile(txn: t, onTap: () => _openTxn(t)));
+      widgets.add(TxnTile(txn: t, onTap: () => _openTxn(t), onHide: () => _hideTxn(t)));
     }
     return widgets;
   }
@@ -444,6 +523,71 @@ class _EmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _UnparsedCard extends StatelessWidget {
+  const _UnparsedCard({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: const Icon(Icons.help_outline),
+        title: Text(count == 1
+            ? '1 bank SMS could not be read'
+            : '$count bank SMS could not be read'),
+        subtitle: const Text('Add them by hand or report them'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _UpdateCard extends StatelessWidget {
+  const _UpdateCard({
+    required this.info,
+    required this.onDownload,
+    required this.onDismiss,
+  });
+
+  final UpdateInfo info;
+  final VoidCallback onDownload;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: scheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Version ${info.tag.replaceFirst('v', '')} is available',
+                style: text.titleMedium),
+            const SizedBox(height: 4),
+            Text('Download the new APK and open it to update.',
+                style: text.bodyMedium),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: onDismiss, child: const Text('Later')),
+                FilledButton(onPressed: onDownload, child: const Text('Download')),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

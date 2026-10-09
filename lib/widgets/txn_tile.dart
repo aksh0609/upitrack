@@ -6,10 +6,11 @@ import '../models/txn.dart';
 import '../util/format.dart';
 
 class TxnTile extends StatelessWidget {
-  const TxnTile({super.key, required this.txn, required this.onTap});
+  const TxnTile({super.key, required this.txn, required this.onTap, this.onHide});
 
   final Txn txn;
   final VoidCallback onTap;
+  final VoidCallback? onHide;
 
   @override
   Widget build(BuildContext context) {
@@ -32,12 +33,24 @@ class TxnTile extends StatelessWidget {
       ),
       title: Text(txn.counterparty, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(details, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: Text(
-        '${txn.isDebit ? '-' : '+'}${formatPaise(txn.amountPaise)}',
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: txn.isDebit ? scheme.onSurface : const Color(0xFF2E7D32),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${txn.isDebit ? '-' : '+'}${formatPaise(txn.amountPaise)}',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: txn.isDebit ? scheme.onSurface : const Color(0xFF2E7D32),
+                ),
+          ),
+          if (onHide != null)
+            IconButton(
+              tooltip: 'Hide',
+              icon: const Icon(Icons.visibility_off_outlined, size: 20),
+              visualDensity: VisualDensity.compact,
+              onPressed: onHide,
             ),
+        ],
       ),
     );
   }

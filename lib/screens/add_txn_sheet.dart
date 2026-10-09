@@ -6,32 +6,57 @@ import '../data/repository.dart';
 import '../models/category.dart';
 
 /// Manual entry for cash, UPI Lite, or anything without a bank SMS.
+/// [amountPaise], [date] and [raw] prefill it from an unrecognised SMS.
 /// Returns true if a transaction was added.
-Future<bool?> showAddTxnSheet(BuildContext context, TxnRepository repository) {
+Future<bool?> showAddTxnSheet(
+  BuildContext context,
+  TxnRepository repository, {
+  int? amountPaise,
+  DateTime? date,
+  String? raw,
+}) {
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _AddTxnSheet(repository: repository),
+    builder: (_) => _AddTxnSheet(
+      repository: repository,
+      amountPaise: amountPaise,
+      date: date,
+      raw: raw,
+    ),
   );
 }
 
 class _AddTxnSheet extends StatefulWidget {
-  const _AddTxnSheet({required this.repository});
+  const _AddTxnSheet({
+    required this.repository,
+    this.amountPaise,
+    this.date,
+    this.raw,
+  });
 
   final TxnRepository repository;
+  final int? amountPaise;
+  final DateTime? date;
+  final String? raw;
 
   @override
   State<_AddTxnSheet> createState() => _AddTxnSheetState();
 }
 
 class _AddTxnSheetState extends State<_AddTxnSheet> {
-  final _amount = TextEditingController();
+  late final _amount = TextEditingController(
+      text: widget.amountPaise == null ? '' : _amountText(widget.amountPaise!));
   final _payee = TextEditingController();
   bool _isDebit = true;
   String _category = 'Food';
-  DateTime _date = DateTime.now();
+  late DateTime _date = widget.date ?? DateTime.now();
   String? _error;
+
+  /// 25000 → "250", 12050 → "120.50".
+  static String _amountText(int paise) =>
+      paise % 100 == 0 ? '${paise ~/ 100}' : (paise / 100).toStringAsFixed(2);
 
   @override
   void dispose() {
@@ -67,6 +92,7 @@ class _AddTxnSheetState extends State<_AddTxnSheet> {
       counterparty: payee.isEmpty ? (_isDebit ? 'Cash' : 'Cash received') : payee,
       category: _isDebit ? _category : 'Income',
       time: _date,
+      raw: widget.raw,
     );
     if (mounted) Navigator.pop(context, true);
   }

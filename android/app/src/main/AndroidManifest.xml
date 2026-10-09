@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Read bank transaction SMS. Processed only on the device. -->
     <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Wake up when a bank SMS arrives, to show "₹250 to Swiggy" at once. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Update check (GitHub Releases API). Phase 2 adds Google Drive sync. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:label="UPI Track"
@@ -24,6 +29,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Only the system can send this broadcast (BROADCAST_SMS). -->
+        <receiver
+            android:name=".SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

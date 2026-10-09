@@ -20,11 +20,17 @@ dependencies:
   # Free under the Syncfusion Community License for individuals and small
   # companies; see README.
   syncfusion_flutter_pdf: '>=29.1.33 <40.0.0'
+  share_plus: ^12.0.2
+  http: ^1.6.0
+  package_info_plus: ^9.0.1
+  url_launcher: ^6.3.3
+  flutter_local_notifications: ^22.3.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  sqflite_common_ffi: ^2.4.3
 
 flutter:
   uses-material-design: true

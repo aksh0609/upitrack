@@ -1,4 +1,5 @@
 import '../models/txn.dart';
+import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
 import '../parser/sms_parser.dart';
 import '../parser/statement_parser.dart';
@@ -33,6 +34,9 @@ class TxnRepository {
   /// How far back to look the very first time the app reads SMS (Android).
   static const Duration firstSyncWindow = Duration(days: 180);
 
+  /// Handled "not recognised" rows are deleted after this long.
+  static const Duration unparsedRetention = Duration(days: 90);
+
   // ------------------------------------------------------------- Android
 
   /// Reads new SMS from the inbox, parses bank transactions and stores them.
@@ -48,20 +52,28 @@ class TxnRepository {
 
     final messages = await _sms.readInbox(since: since);
     final rules = await _db.rules();
-    final txns = [
-      for (final m in messages)
-        _fromSms(
-          sender: m.address,
-          body: m.body,
-          time: m.date,
-          fallbackKey: 'sms:${m.id}',
-          smsId: m.id,
-          source: 'sms',
-          rules: rules,
-        ),
-    ].whereType<Txn>().toList();
+    final txns = <Txn>[];
+    final unparsed = <UnparsedSms>[];
+    for (final m in messages) {
+      final t = _fromSms(
+        sender: m.address,
+        body: m.body,
+        time: m.date,
+        fallbackKey: 'sms:${m.id}',
+        smsId: m.id,
+        source: 'sms',
+        rules: rules,
+      );
+      if (t != null) {
+        txns.add(t);
+      } else if (SmsParser.looksLikeTransaction(m.address, m.body)) {
+        unparsed.add(UnparsedSms(key: 'sms:${m.id}', sender: m.address, body: m.body, time: m.date));
+      }
+    }
 
     final added = await _db.insertAll(txns);
+    await _db.insertUnparsed(unparsed);
+    await _db.purgeUnparsed(before: now.subtract(unparsedRetention));
     await _db.setMeta('last_sync_ms', now.millisecondsSinceEpoch.toString());
     return added;
   }
@@ -70,21 +82,29 @@ class TxnRepository {
 
   /// Stores bank SMS handed over by the "Log Bank SMS" Shortcuts action.
   Future<int> syncShortcutInbox() async {
+    await _db.purgeUnparsed(before: DateTime.now().subtract(unparsedRetention));
     final messages = await _inbox.pending();
     if (messages.isEmpty) return 0;
     final rules = await _db.rules();
-    final txns = [
-      for (final m in messages)
-        _fromSms(
-          sender: m.sender,
-          body: m.body,
-          time: m.date,
-          fallbackKey: 'shortcut:${m.id}',
-          source: 'shortcut',
-          rules: rules,
-        ),
-    ].whereType<Txn>().toList();
+    final txns = <Txn>[];
+    final unparsed = <UnparsedSms>[];
+    for (final m in messages) {
+      final t = _fromSms(
+        sender: m.sender,
+        body: m.body,
+        time: m.date,
+        fallbackKey: 'shortcut:${m.id}',
+        source: 'shortcut',
+        rules: rules,
+      );
+      if (t != null) {
+        txns.add(t);
+      } else if (SmsParser.looksLikeTransaction(m.sender, m.body)) {
+        unparsed.add(UnparsedSms(key: 'shortcut:${m.id}', sender: m.sender, body: m.body, time: m.date));
+      }
+    }
     final added = await _db.insertAll(txns);
+    await _db.insertUnparsed(unparsed);
     await _inbox.remove(messages);
 
     final seen = int.tryParse(await _db.getMeta('shortcut_count') ?? '') ?? 0;
@@ -129,8 +149,7 @@ class TxnRepository {
   }
 
   String _category(String counterparty, bool isDebit, Map<String, String> rules) =>
-      (isDebit ? rules[counterparty] : null) ??
-      Categorizer.categorize(counterparty, isDebit: isDebit);
+      Categorizer.categorizeWith(rules, counterparty, isDebit: isDebit);
 
   // ----------------------------------------------------------- statements
 
@@ -147,14 +166,19 @@ class TxnRepository {
 
     final first = rows.map((r) => r.date).reduce((a, b) => a.isBefore(b) ? a : b);
     final last = rows.map((r) => r.date).reduce((a, b) => a.isAfter(b) ? a : b);
-    final existing = await _db.between(
+    final existing = await _db.betweenIncludingHidden(
       DateTime(first.year, first.month, first.day),
       DateTime(last.year, last.month, last.day + 1),
     );
-    final present = {
-      for (final t in existing)
-        if (t.source != 'statement') _sameDayKey(t.time, t.amountPaise, t.isDebit),
-    };
+    // How many non-statement payments exist per day/amount/direction. Each
+    // statement row consumes one match, so two ₹50 payments on one day with
+    // only one SMS caught still import the second one.
+    final present = <String, int>{};
+    for (final t in existing) {
+      if (t.source == 'statement') continue;
+      final k = _sameDayKey(t.time, t.amountPaise, t.isDebit);
+      present[k] = (present[k] ?? 0) + 1;
+    }
 
     final rules = await _db.rules();
     final occurrences = <String, int>{};
@@ -162,7 +186,10 @@ class TxnRepository {
     var duplicates = 0;
 
     for (final r in rows) {
-      if (present.contains(_sameDayKey(r.date, r.amountPaise, r.isDebit))) {
+      final dayKey = _sameDayKey(r.date, r.amountPaise, r.isDebit);
+      final left = present[dayKey] ?? 0;
+      if (left > 0) {
+        present[dayKey] = left - 1;
         duplicates++;
         continue;
       }
@@ -222,13 +249,29 @@ class TxnRepository {
 
   Future<void> hide(Txn t) => _db.hide(t.id!);
 
+  Future<List<Txn>> hidden() => _db.hidden();
+
+  Future<void> unhide(Txn t) => _db.unhide(t.id!);
+
+  // ----------------------------------------------------------- unparsed
+
+  /// Bank-looking SMS the parser couldn't read, newest first.
+  Future<List<UnparsedSms>> unparsed() => _db.openUnparsed();
+
+  /// [state] is 'added' (user entered it by hand) or 'ignored'.
+  Future<void> resolveUnparsed(UnparsedSms u, {required String state}) =>
+      _db.setUnparsedState(u.id!, state);
+
   /// For cash, UPI Lite or anything that didn't come with a bank SMS.
+  /// [raw] is the original SMS when the entry comes from the
+  /// "not recognised" list, so the detail sheet can still show it.
   Future<void> addManual({
     required int amountPaise,
     required bool isDebit,
     required String counterparty,
     required String category,
     required DateTime time,
+    String? raw,
   }) =>
       _db.insertAll([
         Txn(
@@ -239,6 +282,7 @@ class TxnRepository {
           channel: 'Cash',
           category: category,
           time: time,
+          raw: raw,
           manual: true,
           source: 'manual',
         ),

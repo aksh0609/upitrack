@@ -73,12 +73,14 @@ class SmsParser {
     caseSensitive: false,
   );
 
-  /// OTPs, collect requests, reminders, failed payments and promotions.
+  /// OTPs, collect requests, reminders, failed payments, promotions, and
+  /// gift-card / wallet balance notices (pre-paid, not a bank payment).
   static final RegExp _exclude = RegExp(
     r'\b(?:otp|one[\s-]?time[\s-]?password|requested|collect request|is due|'
     r'due on|due date|will be (?:debited|credited)|minimum amount|reminder|'
     r'offer|congratulations|apply now|claim now|eligible|failed|declined|'
-    r'unsuccessful|is pending)\b',
+    r'unsuccessful|is pending|gift\s*card|gift\s*voucher|wallet\s+balance|'
+    r'remaining\s+balance|will\s+expire)\b',
     caseSensitive: false,
   );
 
@@ -173,6 +175,25 @@ class SmsParser {
   /// people from faking transactions by texting you.
   static bool isLikelyBankSender(String address) =>
       !RegExp(r'^\+?\d{7,}$').hasMatch(address.replaceAll(' ', ''));
+
+  /// True when an SMS that [parse] rejected still looks like a bank payment:
+  /// bank sender, not an OTP/promo/reminder, mentions an account, card or UPI,
+  /// and mentions an amount or a debit/credit word. Used to show "we couldn't
+  /// read this" to the user.
+  static bool looksLikeTransaction(String address, String body) {
+    if (body.trim().isEmpty || !isLikelyBankSender(address)) return false;
+    if (_exclude.hasMatch(body)) return false;
+    // Real bank SMS name an account, card or UPI; merchant and telecom
+    // messages that merely mention an amount don't.
+    if (!_account.hasMatch(body) && !_upiWord.hasMatch(body)) return false;
+    return _currencyAmount.hasMatch(body) ||
+        _debitWord.hasMatch(body) ||
+        _creditWord.hasMatch(body);
+  }
+
+  /// The transaction amount in an SMS [parse] rejected, used to prefill
+  /// manual entry. Skips "Avl Bal" style amounts like [parse] does.
+  static int? firstAmountPaise(String body) => _amount(body);
 
   /// Returns a transaction, or null if the SMS isn't a completed money movement.
   static ParsedTxn? parse(String address, String body) {
