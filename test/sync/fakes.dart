@@ -23,6 +23,9 @@ class FakeAuth implements SyncAuth {
   Future<http.Client?> restore() async => signedIn ? http.Client() : null;
 
   @override
+  Future<http.Client?> client() async => signedIn ? http.Client() : null;
+
+  @override
   Future<void> signOut() async => signedIn = false;
 }
 

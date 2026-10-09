@@ -122,9 +122,9 @@ Google sign-in needs a Google Cloud project — no code, about ten minutes:
 1. [console.cloud.google.com](https://console.cloud.google.com) → New project (e.g. "UPI Track").
 2. APIs & Services → Library → enable **Google Drive API**.
 3. APIs & Services → OAuth consent screen → External → fill the app name and your email → Scopes → add `https://www.googleapis.com/auth/drive.appdata` only → Audience → Publish app (the `drive.appdata` scope is non-sensitive and needs no verification).
-4. APIs & Services → Credentials → Create credentials → OAuth client ID → **Android**: package name `com.piyush.upitrack`, SHA-1 of the release keystore (`keytool -list -v -keystore upload-keystore.jks`, or `openssl x509 -in cert.pem -noout -fingerprint -sha1` on the PEM saved next to it). The current release key's SHA-1 is `F8:4D:00:30:A5:A4:77:9B:47:46:FE:3C:60:A0:8B:F4:1F:DD:91:0F`. Add a second Android client with the debug SHA-1 if you run debug builds. Phase 2b adds a Web client for the GitHub Pages origin.
+4. APIs & Services → Credentials → Create credentials → OAuth client ID → **Android**: package name `com.piyush.upitrack`, SHA-1 of the release keystore (`keytool -list -v -keystore upload-keystore.jks`, or `openssl x509 -in cert.pem -noout -fingerprint -sha1` on the PEM saved next to it). The current release key's SHA-1 is `F8:4D:00:30:A5:A4:77:9B:47:46:FE:3C:60:A0:8B:F4:1F:DD:91:0F`. Add a second Android client with the debug SHA-1 if you run debug builds. Also create a **Web application** client (no origins needed yet); paste its client id into `kGoogleServerClientId` in `lib/sync/oauth_ids.dart` — google_sign_in on Android requires it as the "server client id". Phase 2b adds a Web client for the GitHub Pages origin.
 
-Client IDs are not secrets; Android needs none in code.
+Client ids are not secrets; the Web client id is committed in code.
 
 ## How it works
 

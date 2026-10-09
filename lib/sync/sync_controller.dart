@@ -57,7 +57,6 @@ class SyncController extends ChangeNotifier {
   /// Counts syncs that pulled something new, so the home screen knows to reload.
   int pulled = 0;
 
-  SyncStore? _store;
   SecretKey? _key;
   Timer? _debounce;
 
@@ -66,7 +65,6 @@ class SyncController extends ChangeNotifier {
     if (ms != null) lastOk = DateTime.fromMillisecondsSinceEpoch(ms);
     final client = await _guard(_auth.restore);
     if (client == null) return _set(SyncState.signedOut);
-    _store = _storeFor(client);
     _key = await _keys.read();
     if (_key == null) return _askPassphrase();
     _set(SyncState.ready);
@@ -76,7 +74,6 @@ class SyncController extends ChangeNotifier {
   Future<void> signIn() async {
     final client = await _guard(_auth.signIn);
     if (client == null) return _set(SyncState.signedOut);
-    _store = _storeFor(client);
     _key = await _keys.read();
     if (_key != null) {
       _set(SyncState.ready);
@@ -86,8 +83,17 @@ class SyncController extends ChangeNotifier {
     }
   }
 
+  /// A store over a freshly authorized client: Drive tokens expire after
+  /// about an hour, so none is kept between operations.
+  Future<SyncStore?> _storeNow() async {
+    final c = await _guard(_auth.client);
+    return c == null ? null : _storeFor(c);
+  }
+
   Future<void> _askPassphrase() async {
-    final meta = await _guard(() => SyncSetup(_store!, iterations: iterations).readMeta());
+    final store = await _storeNow();
+    if (store == null) return _set(SyncState.signedOut);
+    final meta = await _guard(() => SyncSetup(store, iterations: iterations).readMeta());
     metaExists = meta != null;
     _set(SyncState.needsPassphrase);
   }
@@ -95,8 +101,13 @@ class SyncController extends ChangeNotifier {
   /// Creates the folder's meta.json (first device) or checks the passphrase
   /// against it. False means it didn't match; the state is unchanged.
   Future<bool> setPassphrase(String passphrase) async {
+    final store = await _storeNow();
+    if (store == null) {
+      _set(SyncState.signedOut);
+      return false;
+    }
     try {
-      final setup = SyncSetup(_store!, iterations: iterations);
+      final setup = SyncSetup(store, iterations: iterations);
       final meta = await setup.readMeta();
       final key = meta == null ? await setup.create(passphrase) : await setup.join(passphrase, meta);
       if (key == null) return false;
@@ -119,7 +130,9 @@ class SyncController extends ChangeNotifier {
     syncing = true;
     notifyListeners();
     try {
-      final result = await SyncService(_db, _store!, _key!).sync();
+      final store = await _storeNow();
+      if (store == null) return _set(SyncState.signedOut);
+      final result = await SyncService(_db, store, _key!).sync();
       if (result.applied > 0) pulled++;
       lastOk = DateTime.now();
       lastError = null;
@@ -148,7 +161,9 @@ class SyncController extends ChangeNotifier {
   /// Forgotten passphrase: wipe the folder; local data stays and is
   /// re-uploaded after a new passphrase.
   Future<void> reset() async {
-    await _try(() => SyncSetup(_store!, iterations: iterations).reset());
+    final store = await _storeNow();
+    if (store == null) return _set(SyncState.signedOut);
+    await _try(() => SyncSetup(store, iterations: iterations).reset());
     await _keys.clear();
     _key = null;
     await _askPassphrase();
@@ -159,7 +174,6 @@ class SyncController extends ChangeNotifier {
     await _try(_auth.signOut);
     await _keys.clear();
     _key = null;
-    _store = null;
     _set(SyncState.signedOut);
   }
 
