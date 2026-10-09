@@ -72,6 +72,7 @@ class SyncController extends ChangeNotifier {
   }
 
   Future<void> signIn() async {
+    lastError = null;
     final client = await _guard(_auth.signIn);
     if (client == null) return _set(SyncState.signedOut);
     _key = await _keys.read();
@@ -126,6 +127,8 @@ class SyncController extends ChangeNotifier {
   }
 
   Future<void> syncNow() async {
+    // Started offline with a key: retry the restore (resume calls this).
+    if (state == SyncState.signedOut && await _keys.read() != null) return start();
     if (state != SyncState.ready || syncing) return;
     syncing = true;
     notifyListeners();
@@ -161,15 +164,24 @@ class SyncController extends ChangeNotifier {
   /// Forgotten passphrase: wipe the folder; local data stays and is
   /// re-uploaded after a new passphrase.
   Future<void> reset() async {
+    lastError = null;
     final store = await _storeNow();
     if (store == null) return _set(SyncState.signedOut);
-    await _try(() => SyncSetup(store, iterations: iterations).reset());
+    try {
+      await SyncSetup(store, iterations: iterations).reset();
+    } catch (e) {
+      // Folder not wiped: the old key still fits it, so keep it.
+      lastError = '$e';
+      notifyListeners();
+      return;
+    }
     await _keys.clear();
     _key = null;
     await _askPassphrase();
   }
 
   Future<void> signOut() async {
+    lastError = null;
     _debounce?.cancel();
     await _try(_auth.signOut);
     await _keys.clear();

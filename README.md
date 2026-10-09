@@ -186,6 +186,7 @@ The app is MIT-licensed. PDF reading uses [`syncfusion_flutter_pdf`](https://pub
 - Sync needs the app to be opened: another device sees new payments only after the phone that received the SMS has run the app (no background upload).
 - Google sign-in on a sideloaded APK works only when the APK is signed with the keystore whose SHA-1 is registered in the Google Cloud project; a build signed with another key gets a sign-in error.
 - Clearing the app's data (or reinstalling without sync) loses local-only changes made since the last successful sync.
+- Self transfers are paired on the phone that received both bank SMS. A debit seen on one phone and the matching credit seen on another are not paired after sync.
 
 ## Roadmap ideas
 
