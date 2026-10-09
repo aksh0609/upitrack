@@ -6,7 +6,7 @@
 
 **Architecture:** Schema v3 adds `txns.edit_ts` and `rules.ts` so a human correction always beats an automatic import. A pure-Dart snapshot/merge layer (`lib/sync/snapshot.dart`, `merge.dart`) and a pure-Dart crypto layer (`lib/sync/crypto.dart`, PBKDF2 + AES-256-GCM) sit under a `SyncService` that talks to a four-method `SyncStore`. The only Drive-specific code is `DriveSyncStore` plus a thin `GoogleAuth` wrapper; tests use an in-memory store. A `SyncController` (ChangeNotifier) owns sign-in state, the key, debounced triggers and "last synced" for the UI; a Settings screen hosts the flow.
 
-**Tech Stack:** Flutter 3.47 stable / Dart 3.13, sqflite 2.4 (+ sqflite_common_ffi in tests), `cryptography` 2.9, `flutter_secure_storage` 11.2, `google_sign_in` 7.2, `googleapis` 17 (Drive v3), `extension_google_sign_in_as_googleapis_auth` 3.0, existing `http` 1.6.
+**Tech Stack:** Flutter 3.47 stable / Dart 3.13, sqflite 2.4 (+ sqflite_common_ffi in tests), `cryptography` 2.9, `flutter_secure_storage` 10.3, `google_sign_in` 7.2, `googleapis` 17 (Drive v3), `extension_google_sign_in_as_googleapis_auth` 3.0, existing `http` 1.6.
 
 **Spec:** `docs/superpowers/specs/2026-10-07-upitrack-v2-design.md` §4.1–§4.7 and §4.9 (sync). §4.8 (web build) is Phase 2b, a separate plan. Spec §3.3's "Phase 2's `edit_ts` makes this exact" is honoured here: pairing switches to `edit_ts`, and Phase 1b's `unpaired_ids` meta key is migrated away.
 
@@ -28,7 +28,7 @@
 - Snapshot JSON (exact): `{"v": 1, "device": "<deviceId>", "exported_ms": <int>, "txns": [...Txn.toMap() incl. hidden, edit_ts...], "rules": [{"counterparty", "category", "ts"}]}`. No gzip in this plan (see Deviations).
 - The category name `Self transfer` (`Categorizer.selfTransfer`) is never written as a payee rule (Phase 1b guard stays).
 - No Android SDK on this machine: `flutter analyze` + `flutter test` are the local verification; the APK is built by CI. `minSdk` is Flutter's default 24.
-- Dependencies added, exactly these: `cryptography: ^2.9.0`, `flutter_secure_storage: ^11.2.0`, `google_sign_in: ^7.2.0`, `googleapis: ^17.0.0`, `extension_google_sign_in_as_googleapis_auth: ^3.0.0`.
+- Dependencies added, exactly these: `cryptography: ^2.9.0`, `flutter_secure_storage: ^10.3.4`, `google_sign_in: ^7.2.0`, `googleapis: ^17.0.0`, `extension_google_sign_in_as_googleapis_auth: ^3.0.0`.
 
 ### Deviations from the spec, decided in this plan
 
@@ -1534,7 +1534,7 @@ Expected suite: 107 tests.
 ### Task 7: Drive store, Google sign-in, key storage (spec §4.2, §4.6, §4.7)
 
 **Files:**
-- Modify: `pubspec.yaml` (add `googleapis: ^17.0.0`, `google_sign_in: ^7.2.0`, `extension_google_sign_in_as_googleapis_auth: ^3.0.0`, `flutter_secure_storage: ^11.2.0`)
+- Modify: `pubspec.yaml` (add `googleapis: ^17.0.0`, `google_sign_in: ^7.2.0`, `extension_google_sign_in_as_googleapis_auth: ^3.0.0`, `flutter_secure_storage: ^10.3.4`)
 - Create: `lib/sync/drive_sync_store.dart`, `lib/sync/google_auth.dart`, `lib/sync/sync_keys.dart`
 
 **Interfaces:**
@@ -1548,7 +1548,7 @@ There are no unit tests in this task: every class is a thin adapter over a plugi
 In `pubspec.yaml` under `dependencies:`, after `cryptography: ^2.9.0`, add:
 
 ```yaml
-  flutter_secure_storage: ^11.2.0
+  flutter_secure_storage: ^10.3.4
   google_sign_in: ^7.2.0
   googleapis: ^17.0.0
   extension_google_sign_in_as_googleapis_auth: ^3.0.0
