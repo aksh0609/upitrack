@@ -301,10 +301,15 @@ class TxnRepository {
   Future<List<Txn>> between(DateTime from, DateTime to) =>
       _db.between(from, to);
 
-  Future<void> setCategory(Txn t, String category, {required bool forPayee}) =>
-      forPayee
-          ? _db.setCategoryForPayee(t.counterparty, category)
-          : _db.setCategory(t.id!, category);
+  Future<void> setCategory(Txn t, String category,
+      {required bool forPayee}) async {
+    // Spec §3.3: Self transfer is never a payee rule.
+    if (forPayee && category != Categorizer.selfTransfer) {
+      await _db.setCategoryForPayee(t.counterparty, category);
+    } else {
+      await _db.setCategory(t.id!, category);
+    }
+  }
 
   Future<void> hide(Txn t) => _db.hide(t.id!);
 

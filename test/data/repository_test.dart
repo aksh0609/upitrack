@@ -381,5 +381,15 @@ void main() {
       expect(await r.pairSelfTransfers(DateTime(2026, 10), DateTime(2026, 11)), 0,
           reason: 'already paired rows are skipped');
     });
+
+    test('Self transfer is never saved as a payee rule', () async {
+      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day)]);
+      await r.syncSms();
+      final t = (await october(r)).single;
+      await r.setCategory(t, Categorizer.selfTransfer, forPayee: true);
+      expect(
+          (await db.rules()).keys.map((k) => k.toLowerCase()), isNot(contains('me@oksbi')));
+      expect((await october(r)).single.category, Categorizer.selfTransfer);
+    });
   });
 }

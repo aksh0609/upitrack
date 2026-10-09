@@ -53,6 +53,8 @@ class _MerchantScreenState extends State<MerchantScreen> {
   Iterable<Txn> get _debits => (_txns ?? const []).where(
       (t) => t.isDebit && t.category != Categorizer.selfTransfer);
 
+  bool get _canSetCategory => _debits.any((t) => t.canApplyToPayee);
+
   /// The category most of this merchant's payments carry.
   String? get _category {
     final counts = <String, int>{};
@@ -68,7 +70,7 @@ class _MerchantScreenState extends State<MerchantScreen> {
   /// Remembers [category] for every payee spelling behind this merchant.
   Future<void> _setCategory(String category) async {
     final seen = <String>{};
-    for (final t in _debits) {
+    for (final t in _debits.where((t) => t.canApplyToPayee)) {
       if (seen.add(t.counterparty)) {
         await widget.repository.setCategory(t, category, forPayee: true);
       }
@@ -147,7 +149,7 @@ class _MerchantScreenState extends State<MerchantScreen> {
                 ],
               ),
             ),
-          if (category != null) ...[
+          if (category != null && _canSetCategory) ...[
             const SizedBox(height: 24),
             Text('Category', style: text.titleMedium),
             const SizedBox(height: 8),
@@ -156,7 +158,8 @@ class _MerchantScreenState extends State<MerchantScreen> {
               runSpacing: 8,
               children: [
                 for (final c in kCategories)
-                  if (c.name != Categorizer.income)
+                  if (c.name != Categorizer.income &&
+                      c.name != Categorizer.selfTransfer)
                     ChoiceChip(
                       label: Text(c.name),
                       avatar: Icon(c.icon, size: 18, color: c.color),
