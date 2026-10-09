@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/repository.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
+import '../util/search.dart';
 import '../util/update_check.dart';
 import '../widgets/category_bars.dart';
 import '../widgets/merchant_bars.dart';
@@ -43,6 +44,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Txn> _txns = const [];
   bool _syncing = false;
   bool _upiOnly = false;
+  bool _searching = false;
+  final TextEditingController _search = TextEditingController();
   int _shortcutCount = 0;
   int _unparsedCount = 0;
   UpdateInfo? _update;
@@ -56,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _search.addListener(() => setState(() {}));
     _checkAccess();
     _checkUpdate();
   }
@@ -77,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _search.dispose();
     super.dispose();
   }
 
@@ -164,6 +169,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ..showSnackBar(SnackBar(content: Text(message), action: action));
   }
 
+  void _toggleSearch() {
+    setState(() {
+      _searching = !_searching;
+      if (!_searching) _search.clear();
+    });
+  }
+
   void _changeMonth(int delta) {
     setState(() => _month = DateTime(_month.year, _month.month + delta));
     _load();
@@ -243,8 +255,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final visible =
-        _upiOnly ? _txns.where((t) => t.channel == 'UPI').toList() : _txns;
+    final visible = _txns
+        .where((t) => !_upiOnly || t.channel == 'UPI')
+        .where((t) => matchesSearch(t, _search.text))
+        .toList();
     final summary = MonthSummary.from(visible);
     final text = Theme.of(context).textTheme;
 
@@ -252,6 +266,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text('UPI Track'),
         actions: [
+          IconButton(
+            tooltip: _searching ? 'Close search' : 'Search',
+            icon: Icon(_searching ? Icons.search_off : Icons.search),
+            onPressed: _toggleSearch,
+          ),
           if (_syncing)
             const Padding(
               padding: EdgeInsets.all(16),
@@ -363,6 +382,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ],
             const SizedBox(height: 24),
+            if (_searching) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _search,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search payee or merchant',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: _search.clear,
+                        ),
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+            ],
             Row(
               children: [
                 Expanded(child: Text('Transactions', style: text.titleMedium)),
@@ -374,7 +412,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
             const SizedBox(height: 4),
-            if (visible.isEmpty)
+            if (visible.isEmpty && _search.text.trim().isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Text('No payments match.', textAlign: TextAlign.center),
+              )
+            else if (visible.isEmpty)
               _EmptyState(
                   waitingForAccess: _access != _Access.granted &&
                       !(_access == _Access.iphone && _shortcutCount > 0))
