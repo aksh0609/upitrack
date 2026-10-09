@@ -24,12 +24,15 @@ Future<void> main() async {
   if (kIsWeb) databaseFactory = databaseFactoryFfiWeb;
   final db = await AppDb.open();
   final info = await PackageInfo.fromPlatform();
+  final auth = GoogleAuth();
   final sync = SyncController(
     db,
-    auth: GoogleAuth(),
+    auth: auth,
     keys: SecureSyncKeys(),
     storeFor: DriveSyncStore.new,
   );
+  // Web: Google's button signs in outside our code; re-check when it does.
+  auth.onAccountChanged = () => unawaited(sync.start());
   runApp(UpiTrackApp(
     repository: TxnRepository(db, SmsSource(), ShortcutInbox()),
     updateChecker: UpdateChecker(db, currentVersion: info.version),

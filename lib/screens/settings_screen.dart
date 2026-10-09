@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../sync/google_button.dart';
+import '../sync/oauth_ids.dart';
 import '../sync/sync_controller.dart';
 
 /// Settings → Sync with Google Drive (spec §4.7).
@@ -50,11 +53,16 @@ class _SignedOut extends StatelessWidget {
               'encrypted on this device with a passphrase before it is stored '
               'in a hidden folder of your Google Drive; Google cannot read it.'),
           const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: sync.signIn,
-            icon: const Icon(Icons.login),
-            label: const Text('Sign in with Google'),
-          ),
+          if (kIsWeb && !sync.hasAccount && kGoogleServerClientId != null)
+            // The web plugin signs in only through Google's own button; the
+            // Drive consent follows with the tap below once the account is known.
+            googleSignInButton()
+          else
+            FilledButton.icon(
+              onPressed: sync.signIn,
+              icon: const Icon(Icons.login),
+              label: Text(kIsWeb ? 'Allow Drive access' : 'Sign in with Google'),
+            ),
         ],
       );
 }

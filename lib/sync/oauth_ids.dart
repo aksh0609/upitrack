@@ -1,5 +1,6 @@
-/// OAuth client ids are not secrets (spec §4.7). Android's google_sign_in 7
-/// needs the WEB client id as `serverClientId`; see README "Owner setup".
-/// Null until the owner creates the client — sign-in then fails fast with a
-/// clear message instead of a cryptic Credential Manager error.
+/// The OAuth **Web application** client id from the owner's Google Cloud
+/// project (README → Owner setup). Android passes it as `serverClientId`;
+/// the web app passes it as `clientId`, so its "Authorised JavaScript
+/// origins" must list https://aksh0609.github.io and http://localhost:8080.
+/// Client ids are not secrets. Null = sign-in shows "not configured".
 const String? kGoogleServerClientId = null;
