@@ -417,4 +417,85 @@ void main() {
       expect(await r2.pairSelfTransfers(DateTime(2026, 10), DateTime(2026, 11)), 0);
     });
   });
+
+  group('schema v3', () {
+    test('a version-2 database gains edit_ts and rules.ts; hand-set categories are stamped', () async {
+      final dir = await Directory.systemTemp.createTemp('upitrack_v2');
+      final path = p.join(dir.path, 'upitrack.db');
+      final v2 = await databaseFactoryFfi.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 2,
+          onCreate: (db, _) async {
+            await db.execute('''
+              CREATE TABLE txns(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                sms_id INTEGER,
+                amount_paise INTEGER NOT NULL,
+                is_debit INTEGER NOT NULL,
+                counterparty TEXT NOT NULL,
+                bank TEXT,
+                account TEXT,
+                ref TEXT,
+                channel TEXT NOT NULL,
+                category TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                raw TEXT,
+                manual INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT 'sms',
+                hidden INTEGER NOT NULL DEFAULT 0
+              )''');
+            await db.execute(
+                'CREATE TABLE rules(counterparty TEXT PRIMARY KEY, category TEXT NOT NULL)');
+            await db.execute('CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
+            await db.execute('''
+              CREATE TABLE unparsed(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                sender TEXT NOT NULL,
+                body TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                state TEXT NOT NULL DEFAULT 'open'
+              )''');
+          },
+        ),
+      );
+      final ts = DateTime(2026, 10, 3).millisecondsSinceEpoch;
+      Map<String, Object?> row(String key, String cp, bool debit, String cat) => {
+            'key': key, 'amount_paise': 1000, 'is_debit': debit ? 1 : 0,
+            'counterparty': cp, 'channel': 'UPI', 'category': cat, 'ts': ts,
+          };
+      await v2.insert('txns', row('a', 'SWIGGY', true, 'Food')); // the automatic guess
+      await v2.insert('txns', row('b', 'SWIGGY', true, 'Groceries')); // hand-set
+      await v2.insert('txns', row('c', 'me@oksbi', true, 'Self transfer')); // paired
+      final d = await v2.insert('txns', row('d', 'HDFC', false, 'Income')); // un-paired by hand
+      await v2.insert('rules', {'counterparty': 'ZOMATO', 'category': 'Groceries'});
+      await v2.insert('meta', {'k': 'unpaired_ids', 'v': '$d'});
+      await v2.close();
+
+      final db = await AppDb.open(factory: databaseFactoryFfi, path: path);
+      final byKey = {for (final t in await db.between(DateTime(2026, 10), DateTime(2026, 11))) t.key: t};
+      expect(byKey['a']!.editTs, 0);
+      expect(byKey['b']!.editTs, greaterThan(0));
+      expect(byKey['c']!.editTs, 0);
+      expect(byKey['d']!.editTs, greaterThan(0));
+      expect((await db.rulesRows()).single['ts'], greaterThan(0));
+      expect(await db.getMeta('unpaired_ids'), isNull);
+      expect(await db.getMeta('sync_dirty'), '1');
+      await db.close();
+      await dir.delete(recursive: true);
+    });
+
+    test('Txn round-trips hidden and edit_ts', () {
+      final t = Txn(
+        key: 'k', amountPaise: 1, isDebit: true, counterparty: 'x', channel: 'UPI',
+        category: 'Food', time: DateTime(2026, 10, 3), hidden: true, editTs: 42,
+      );
+      final back = Txn.fromMap(t.toMap());
+      expect(back.hidden, isTrue);
+      expect(back.editTs, 42);
+      expect(Txn.fromMap({...t.toMap()}..remove('edit_ts')..remove('hidden')).editTs, 0);
+    });
+  });
 }

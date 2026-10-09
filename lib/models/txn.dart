@@ -16,6 +16,8 @@ class Txn {
     this.raw,
     this.manual = false,
     this.source = 'sms',
+    this.hidden = false,
+    this.editTs = 0,
   });
 
   final int? id;
@@ -46,6 +48,15 @@ class Txn {
   /// Where it came from: 'sms', 'shortcut' (iPhone), 'statement' or 'manual'.
   final String source;
 
+  /// Hidden rows stay in the table (and in sync snapshots) so a later sync
+  /// doesn't re-add them.
+  final bool hidden;
+
+  /// Milliseconds since epoch of the last change the *user* made to this
+  /// row (category, hide/unhide); 0 for rows that only ever had automatic
+  /// values. Sync lets the higher edit_ts win (spec §4.3).
+  final int editTs;
+
   /// Statement rows usually have only a date, not a time.
   bool get hasTime => source != 'statement' || time.hour != 12 || time.minute != 0;
 
@@ -65,6 +76,8 @@ class Txn {
         'raw': raw,
         'manual': manual ? 1 : 0,
         'source': source,
+        'hidden': hidden ? 1 : 0,
+        'edit_ts': editTs,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -83,5 +96,7 @@ class Txn {
         raw: m['raw'] as String?,
         manual: (m['manual'] as int? ?? 0) == 1,
         source: m['source'] as String? ?? 'sms',
+        hidden: (m['hidden'] as int? ?? 0) == 1,
+        editTs: m['edit_ts'] as int? ?? 0,
       );
 }
