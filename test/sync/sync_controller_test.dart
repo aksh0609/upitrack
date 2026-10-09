@@ -103,6 +103,20 @@ void main() {
     expect(keys.key, isNull);
   });
 
+  test('a known account without Drive access stays signed out until the next tap',
+      () async {
+    final auth = FakeAuth()
+      ..signedIn = true
+      ..authorized = false;
+    final c = controller(a, auth, MemorySyncKeys());
+    await c.start();
+    expect(c.state, SyncState.signedOut);
+    expect(c.hasAccount, isTrue);
+
+    await c.signIn();
+    expect(c.state, SyncState.needsPassphrase);
+  });
+
   test('a cancelled sign-in stays signed out; poke debounces into one sync',
       () async {
     final auth = FakeAuth()..cancelNext = true;

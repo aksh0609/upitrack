@@ -57,6 +57,10 @@ class SyncController extends ChangeNotifier {
   /// Counts syncs that pulled something new, so the home screen knows to reload.
   int pulled = 0;
 
+  /// A Google account is known (web: the user pressed Google's button) even
+  /// while [state] is [SyncState.signedOut] for lack of Drive access.
+  bool get hasAccount => _auth.hasAccount;
+
   SecretKey? _key;
   Timer? _debounce;
 
