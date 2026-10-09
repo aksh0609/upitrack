@@ -1742,7 +1742,7 @@ git commit -m "Add the Drive store, Google sign-in wrapper and secure key storag
 Claude-Session: https://claude.ai/code/session_01JRLLy55rhHqrkMzo7AVgEa"
 ```
 
-Expected suite: 107 tests (unchanged). If `flutter analyze` reports a missing Android `minSdk` or Gradle requirement from `flutter_secure_storage`/`google_sign_in`, stop and report it rather than editing Gradle files: `minSdk` is Flutter's default 24, which these versions support.
+Expected suite: 109 tests (unchanged; Task 6's fix round added two). If `flutter analyze` reports a missing Android `minSdk` or Gradle requirement from `flutter_secure_storage`/`google_sign_in`, stop and report it rather than editing Gradle files: `minSdk` is Flutter's default 24, which these versions support.
 
 ---
 
@@ -2534,7 +2534,7 @@ git commit -m "Add the sync controller, Settings screen and sync triggers" -m "C
 Claude-Session: https://claude.ai/code/session_01JRLLy55rhHqrkMzo7AVgEa"
 ```
 
-Expected suite: 113 tests.
+Expected suite: 115 tests.
 
 ---
 
