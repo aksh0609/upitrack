@@ -25,6 +25,7 @@ dependencies:
   package_info_plus: ^9.0.1
   url_launcher: ^6.3.3
   flutter_local_notifications: ^22.3.1
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:
