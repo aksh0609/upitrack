@@ -7,6 +7,9 @@ class Categorizer {
 
   static const String income = 'Income';
   static const String transfers = 'Transfers';
+  /// Money moved between the user's own accounts. Never guessed here; only
+  /// TxnRepository's pairing assigns it (spec §3.3).
+  static const String selfTransfer = 'Self transfer';
   static const String others = 'Others';
 
   /// Checked top to bottom, so put more specific words first

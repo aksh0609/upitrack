@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../data/repository.dart';
 import '../models/category.dart';
 import '../models/txn.dart';
+import '../parser/categorizer.dart';
 import '../util/format.dart';
 
 /// Shows transaction details. Returns true if something changed.
@@ -32,9 +33,6 @@ class _TxnSheetState extends State<_TxnSheet> {
   bool _forPayee = true;
   bool _saving = false;
 
-  bool get _canApplyToPayee =>
-      widget.txn.isDebit && !widget.txn.manual && widget.txn.counterparty != 'Unknown';
-
   Future<void> _save() async {
     if (_category == widget.txn.category) {
       Navigator.pop(context, false);
@@ -42,7 +40,7 @@ class _TxnSheetState extends State<_TxnSheet> {
     }
     setState(() => _saving = true);
     await widget.repository.setCategory(widget.txn, _category,
-        forPayee: _forPayee && _canApplyToPayee);
+        forPayee: _forPayee && widget.txn.canApplyToPayee);
     if (mounted) Navigator.pop(context, true);
   }
 
@@ -93,7 +91,7 @@ class _TxnSheetState extends State<_TxnSheet> {
                   ),
               ],
             ),
-            if (_canApplyToPayee)
+            if (t.canApplyToPayee && _category != Categorizer.selfTransfer)
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _forPayee,
