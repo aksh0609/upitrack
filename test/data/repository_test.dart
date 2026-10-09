@@ -282,4 +282,35 @@ void main() {
       await dir.delete(recursive: true);
     });
   });
+
+  group('accounts', () {
+    const hdfcChai = 'Sent Rs.50.00\nFrom HDFC Bank A/C *1234\nTo CHAI POINT\n'
+        'On 04/10/26\nRef 427600000055';
+    const sbiZomato = 'Dear UPI user A/C X5678 debited by 120.0 on date 03Oct26 '
+        'trf to ZOMATO Refno 427698765432. If not u? call 1800111109. -SBI';
+
+    test('discovered from SMS, most-used first', () async {
+      final repo = TxnRepository(
+        db,
+        FakeSms([
+          RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9)),
+          RawSms(id: 2, address: 'VM-HDFCBK', body: hdfcChai, date: DateTime(2026, 10, 4, 9)),
+          RawSms(id: 3, address: 'AD-SBIUPI-S', body: sbiZomato, date: DateTime(2026, 10, 3, 10)),
+        ]),
+        FakeInbox(),
+      );
+      await repo.syncSms();
+      expect(await repo.accounts(), [
+        (bank: 'HDFC Bank', last4: '1234'),
+        (bank: 'SBI', last4: '5678'),
+      ]);
+    });
+
+    test('empty when nothing names an account', () async {
+      final repo = TxnRepository(db, FakeSms(const []), FakeInbox());
+      await repo.addManual(amountPaise: 100, isDebit: true, counterparty: 'Cash',
+          category: 'Food', time: DateTime(2026, 10, 1));
+      expect(await repo.accounts(), isEmpty);
+    });
+  });
 }

@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/repository.dart';
+import '../models/account.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
 import '../util/search.dart';
@@ -48,6 +49,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final TextEditingController _search = TextEditingController();
   int _shortcutCount = 0;
   int _unparsedCount = 0;
+  List<AccountRef> _accounts = const [];
+  AccountRef? _account;
   UpdateInfo? _update;
 
   bool get _isCurrentMonth {
@@ -154,10 +157,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final txns = await widget.repository
         .between(_month, DateTime(_month.year, _month.month + 1));
     final unparsed = await widget.repository.unparsed();
+    final accounts = await widget.repository.accounts();
     if (mounted) {
       setState(() {
         _txns = txns;
         _unparsedCount = unparsed.length;
+        _accounts = accounts;
+        if (_account != null && !accounts.contains(_account)) _account = null;
       });
     }
   }
@@ -257,6 +263,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final visible = _txns
         .where((t) => !_upiOnly || t.channel == 'UPI')
+        .where((t) =>
+            _account == null ||
+            (t.bank == _account!.bank && t.account == _account!.last4))
         .where((t) => matchesSearch(t, _search.text))
         .toList();
     final summary = MonthSummary.from(visible);
@@ -354,6 +363,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               canGoForward: !_isCurrentMonth,
               onChanged: _changeMonth,
             ),
+            if (_accounts.length >= 2)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('All'),
+                      selected: _account == null,
+                      onSelected: (_) => setState(() => _account = null),
+                    ),
+                    for (final a in _accounts) ...[
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: Text(accountLabel(a)),
+                        selected: _account == a,
+                        onSelected: (_) => setState(() => _account = a),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             const SizedBox(height: 8),
             SummaryCard(summary: summary, showToday: _isCurrentMonth),
             if (summary.byCategory.isNotEmpty) ...[

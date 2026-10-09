@@ -1,3 +1,4 @@
+import '../models/account.dart';
 import '../models/txn.dart';
 import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
@@ -252,6 +253,7 @@ class TxnRepository {
   Future<List<Txn>> hidden() => _db.hidden();
 
   Future<void> unhide(Txn t) => _db.unhide(t.id!);
+  Future<List<AccountRef>> accounts() => _db.accounts();
 
   // ----------------------------------------------------------- unparsed
 
