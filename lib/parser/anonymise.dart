@@ -37,6 +37,8 @@ String anonymise(String body) {
   return s.replaceAllMapped(_digits, (m) {
     final start = m.start < 24 ? 0 : m.start - 24;
     final before = m.input.substring(start, m.start);
-    return _amountPrefix.hasMatch(before) ? m.group(0)! : 'X' * m.group(0)!.length;
+    return _amountPrefix.hasMatch(before)
+        ? m.group(0)!
+        : 'X' * m.group(0)!.length;
   });
 }

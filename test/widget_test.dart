@@ -28,10 +28,16 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsNWidgets(2));
   });
 
-  testWidgets('TxnTile shows a Hide button only when onHide is given', (tester) async {
+  testWidgets('TxnTile shows a Hide button only when onHide is given',
+      (tester) async {
     final txn = Txn(
-      key: 'k', amountPaise: 25000, isDebit: true, counterparty: 'SWIGGY',
-      channel: 'UPI', category: 'Food', time: DateTime(2026, 10, 3, 9),
+      key: 'k',
+      amountPaise: 25000,
+      isDebit: true,
+      counterparty: 'SWIGGY',
+      channel: 'UPI',
+      category: 'Food',
+      time: DateTime(2026, 10, 3, 9),
     );
     var hidden = 0;
     await tester.pumpWidget(MaterialApp(
@@ -47,7 +53,8 @@ void main() {
     expect(hidden, 1);
   });
 
-  testWidgets('MerchantBars shows limited rows and reports taps', (tester) async {
+  testWidgets('MerchantBars shows limited rows and reports taps',
+      (tester) async {
     String? tapped;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -69,14 +76,18 @@ void main() {
     expect(tapped, 'Amazon');
   });
 
-  testWidgets('Settings walks from sign-in to a passphrase to ready', (tester) async {
+  testWidgets('Settings walks from sign-in to a passphrase to ready',
+      (tester) async {
     sqfliteFfiInit();
     // Real sqflite I/O never completes in the fake-async zone: run it in real time.
-    final db = (await tester.runAsync(
-        () => AppDb.open(factory: databaseFactoryFfi, path: inMemoryDatabasePath)))!;
+    final db = (await tester.runAsync(() =>
+        AppDb.open(factory: databaseFactoryFfi, path: inMemoryDatabasePath)))!;
     final store = MemorySyncStore();
     final sync = SyncController(db,
-        auth: FakeAuth(), keys: MemorySyncKeys(), storeFor: (_) => store, iterations: 1000);
+        auth: FakeAuth(),
+        keys: MemorySyncKeys(),
+        storeFor: (_) => store,
+        iterations: 1000);
     await tester.runAsync(sync.start);
     await tester.pumpWidget(MaterialApp(home: SettingsScreen(sync: sync)));
 
@@ -88,8 +99,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Turn on sync'), findsOneWidget);
 
-    await tester.enterText(find.byKey(const Key('passphrase')), 'correct horse');
-    await tester.enterText(find.byKey(const Key('passphrase2')), 'correct horse');
+    await tester.enterText(
+        find.byKey(const Key('passphrase')), 'correct horse');
+    await tester.enterText(
+        find.byKey(const Key('passphrase2')), 'correct horse');
     await tester.runAsync(() async {
       await tester.tap(find.text('Turn on sync'));
       await waitFor(() => !sync.syncing && sync.lastOk != null);

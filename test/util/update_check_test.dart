@@ -22,7 +22,8 @@ void main() {
     late UpdateChecker checker;
 
     setUp(() async {
-      db = await AppDb.open(factory: databaseFactoryFfi, path: inMemoryDatabasePath);
+      db = await AppDb.open(
+          factory: databaseFactoryFfi, path: inMemoryDatabasePath);
       calls = 0;
       checker = UpdateChecker(
         db,
@@ -61,7 +62,8 @@ void main() {
       final same = UpdateChecker(
         db,
         currentVersion: '0.2.0',
-        client: MockClient((_) async => http.Response('{"tag_name":"v0.2.0","html_url":"u"}', 200)),
+        client: MockClient((_) async =>
+            http.Response('{"tag_name":"v0.2.0","html_url":"u"}', 200)),
       );
       expect(await same.check(now: DateTime(2026, 10, 7)), isNull);
     });

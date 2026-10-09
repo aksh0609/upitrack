@@ -35,7 +35,8 @@ class CategoryBars extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Expanded(child: Text(e.key, style: text.bodyMedium)),
+                            Expanded(
+                                child: Text(e.key, style: text.bodyMedium)),
                             Text(formatPaise(e.value),
                                 style: text.bodyMedium
                                     ?.copyWith(fontWeight: FontWeight.w600)),

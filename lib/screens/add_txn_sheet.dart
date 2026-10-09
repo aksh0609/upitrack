@@ -89,7 +89,8 @@ class _AddTxnSheetState extends State<_AddTxnSheet> {
     await widget.repository.addManual(
       amountPaise: (value * 100).round(),
       isDebit: _isDebit,
-      counterparty: payee.isEmpty ? (_isDebit ? 'Cash' : 'Cash received') : payee,
+      counterparty:
+          payee.isEmpty ? (_isDebit ? 'Cash' : 'Cash received') : payee,
       category: _isDebit ? _category : 'Income',
       time: _date,
       raw: widget.raw,
@@ -100,7 +101,8 @@ class _AddTxnSheetState extends State<_AddTxnSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
@@ -139,7 +141,8 @@ class _AddTxnSheetState extends State<_AddTxnSheet> {
                 controller: _payee,
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
-                  labelText: _isDebit ? 'Paid to (optional)' : 'From (optional)',
+                  labelText:
+                      _isDebit ? 'Paid to (optional)' : 'From (optional)',
                   border: const OutlineInputBorder(),
                 ),
               ),

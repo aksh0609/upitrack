@@ -29,7 +29,8 @@ class MerchantsScreen extends StatelessWidget {
         children: [
           MerchantBars(
             totals: totals,
-            onTap: (merchant) => Navigator.of(context).push(MaterialPageRoute<void>(
+            onTap: (merchant) =>
+                Navigator.of(context).push(MaterialPageRoute<void>(
               builder: (_) => MerchantScreen(
                 repository: repository,
                 merchant: merchant,

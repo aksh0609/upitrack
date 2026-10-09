@@ -68,7 +68,8 @@ class TxnRepository {
       if (t != null) {
         txns.add(t);
       } else if (SmsParser.looksLikeTransaction(m.address, m.body)) {
-        unparsed.add(UnparsedSms(key: 'sms:${m.id}', sender: m.address, body: m.body, time: m.date));
+        unparsed.add(UnparsedSms(
+            key: 'sms:${m.id}', sender: m.address, body: m.body, time: m.date));
       }
     }
 
@@ -102,7 +103,11 @@ class TxnRepository {
       if (t != null) {
         txns.add(t);
       } else if (SmsParser.looksLikeTransaction(m.sender, m.body)) {
-        unparsed.add(UnparsedSms(key: 'shortcut:${m.id}', sender: m.sender, body: m.body, time: m.date));
+        unparsed.add(UnparsedSms(
+            key: 'shortcut:${m.id}',
+            sender: m.sender,
+            body: m.body,
+            time: m.date));
       }
     }
     final added = await _db.insertAll(txns);
@@ -151,7 +156,8 @@ class TxnRepository {
     );
   }
 
-  String _category(String counterparty, bool isDebit, Map<String, String> rules) =>
+  String _category(
+          String counterparty, bool isDebit, Map<String, String> rules) =>
       Categorizer.categorizeWith(rules, counterparty, isDebit: isDebit);
 
   // ----------------------------------------------------------- statements
@@ -167,7 +173,8 @@ class TxnRepository {
       return ImportSummary(added: 0, duplicates: 0, unreadable: result.skipped);
     }
 
-    final first = rows.map((r) => r.date).reduce((a, b) => a.isBefore(b) ? a : b);
+    final first =
+        rows.map((r) => r.date).reduce((a, b) => a.isBefore(b) ? a : b);
     final last = rows.map((r) => r.date).reduce((a, b) => a.isAfter(b) ? a : b);
     final existing = await _db.betweenIncludingHidden(
       DateTime(first.year, first.month, first.day),
@@ -196,14 +203,18 @@ class TxnRepository {
         duplicates++;
         continue;
       }
-      final base = 'stmt:${_ymd(r.date)}:${r.amountPaise}:${r.isDebit ? 'd' : 'c'}:'
+      final base =
+          'stmt:${_ymd(r.date)}:${r.amountPaise}:${r.isDebit ? 'd' : 'c'}:'
           '${_hash(r.narration)}';
       final n = occurrences[base] = (occurrences[base] ?? 0) + 1;
       final counterparty = r.counterparty ?? 'Unknown';
-      final isUpi = RegExp(r'\bupi\b', caseSensitive: false).hasMatch(r.narration) ||
-          r.ref != null;
+      final isUpi =
+          RegExp(r'\bupi\b', caseSensitive: false).hasMatch(r.narration) ||
+              r.ref != null;
       txns.add(Txn(
-        key: r.ref != null ? 'ref:${r.ref}:${r.isDebit ? 'd' : 'c'}' : '$base:$n',
+        key: r.ref != null
+            ? 'ref:${r.ref}:${r.isDebit ? 'd' : 'c'}'
+            : '$base:$n',
         amountPaise: r.amountPaise,
         isDebit: r.isDebit,
         counterparty: counterparty,

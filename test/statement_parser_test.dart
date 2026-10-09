@@ -118,7 +118,8 @@ Page 1 of 1
     });
 
     test('Paytm export with signed amounts', () {
-      const csv = 'Date,Time,Transaction Details,Other Transaction Details (UPI ID or A/c No),Your Account,Amount,UPI Ref No.,Order ID,Remarks,Tags,Comment\n'
+      const csv =
+          'Date,Time,Transaction Details,Other Transaction Details (UPI ID or A/c No),Your Account,Amount,UPI Ref No.,Order ID,Remarks,Tags,Comment\n'
           '03/10/2026,13:05:22,Paid to Swiggy,swiggy@paytm,HDFC Bank - 34,-250,427612341234,,,,\n'
           '02/10/2026,09:00:00,Received from Rahul,rahul@ybl,HDFC Bank - 34,"+1,000",427612341233,,,,\n';
       final r = StatementParser.parseCsv(csv);

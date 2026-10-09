@@ -58,7 +58,8 @@ class Txn {
   final int editTs;
 
   /// Statement rows usually have only a date, not a time.
-  bool get hasTime => source != 'statement' || time.hour != 12 || time.minute != 0;
+  bool get hasTime =>
+      source != 'statement' || time.hour != 12 || time.minute != 0;
 
   Map<String, Object?> toMap() => {
         if (id != null) 'id': id,

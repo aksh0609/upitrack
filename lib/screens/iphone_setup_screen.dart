@@ -80,7 +80,8 @@ class IphoneSetupScreen extends StatelessWidget {
                     radius: 14,
                     backgroundColor: scheme.primary,
                     child: Text('${i + 1}',
-                        style: text.labelLarge?.copyWith(color: scheme.onPrimary)),
+                        style:
+                            text.labelLarge?.copyWith(color: scheme.onPrimary)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

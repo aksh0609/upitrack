@@ -49,8 +49,16 @@ void main() {
       final repo = TxnRepository(
         db,
         FakeSms([
-          RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9)),
-          RawSms(id: 2, address: 'VM-HDFCBK', body: '123456 is your OTP for Rs 500.', date: DateTime(2026, 10, 3, 9)),
+          RawSms(
+              id: 1,
+              address: 'VM-HDFCBK',
+              body: hdfcSwiggy,
+              date: DateTime(2026, 10, 3, 9)),
+          RawSms(
+              id: 2,
+              address: 'VM-HDFCBK',
+              body: '123456 is your OTP for Rs 500.',
+              date: DateTime(2026, 10, 3, 9)),
         ]),
         FakeInbox(),
       );
@@ -70,10 +78,17 @@ void main() {
     const chai50 = 'Sent Rs.50.00\nFrom HDFC Bank A/C *1234\nTo CHAI POINT\n'
         'On 03/10/26\nRef 427600000001';
 
-    test('two same-day same-amount rows with one SMS caught: one is added', () async {
+    test('two same-day same-amount rows with one SMS caught: one is added',
+        () async {
       final repo = TxnRepository(
         db,
-        FakeSms([RawSms(id: 1, address: 'VM-HDFCBK', body: chai50, date: DateTime(2026, 10, 3, 9))]),
+        FakeSms([
+          RawSms(
+              id: 1,
+              address: 'VM-HDFCBK',
+              body: chai50,
+              date: DateTime(2026, 10, 3, 9))
+        ]),
         FakeInbox(),
       );
       await repo.syncSms();
@@ -81,10 +96,18 @@ void main() {
       // Statement narrations without a 12-digit ref, so only the
       // same-day/amount/direction rule can match them.
       final rows = [
-        StatementRow(date: DateTime(2026, 10, 3, 12), amountPaise: 5000, isDebit: true,
-            narration: 'UPI-CHAI POINT-MORNING', counterparty: 'CHAI POINT'),
-        StatementRow(date: DateTime(2026, 10, 3, 12), amountPaise: 5000, isDebit: true,
-            narration: 'UPI-CHAI POINT-EVENING', counterparty: 'CHAI POINT'),
+        StatementRow(
+            date: DateTime(2026, 10, 3, 12),
+            amountPaise: 5000,
+            isDebit: true,
+            narration: 'UPI-CHAI POINT-MORNING',
+            counterparty: 'CHAI POINT'),
+        StatementRow(
+            date: DateTime(2026, 10, 3, 12),
+            amountPaise: 5000,
+            isDebit: true,
+            narration: 'UPI-CHAI POINT-EVENING',
+            counterparty: 'CHAI POINT'),
       ];
       final s = await repo.importStatement(StatementResult(rows, 0));
 
@@ -97,8 +120,13 @@ void main() {
     test('re-importing the same statement adds nothing', () async {
       final repo = TxnRepository(db, FakeSms(const []), FakeInbox());
       final rows = [
-        StatementRow(date: DateTime(2026, 10, 1, 12), amountPaise: 25000, isDebit: true,
-            narration: 'UPI-SWIGGY-427612345678', counterparty: 'SWIGGY', ref: '427612345678'),
+        StatementRow(
+            date: DateTime(2026, 10, 1, 12),
+            amountPaise: 25000,
+            isDebit: true,
+            narration: 'UPI-SWIGGY-427612345678',
+            counterparty: 'SWIGGY',
+            ref: '427612345678'),
       ];
       expect((await repo.importStatement(StatementResult(rows, 0))).added, 1);
       final again = await repo.importStatement(StatementResult(rows, 0));
@@ -109,20 +137,32 @@ void main() {
     test('a hidden payment is still a duplicate, not re-added', () async {
       final repo = TxnRepository(
         db,
-        FakeSms([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]),
+        FakeSms([
+          RawSms(
+              id: 1,
+              address: 'VM-HDFCBK',
+              body: hdfcSwiggy,
+              date: DateTime(2026, 10, 3, 9))
+        ]),
         FakeInbox(),
       );
       await repo.syncSms();
-      final t = (await repo.between(DateTime(2026, 10), DateTime(2026, 11))).single;
+      final t =
+          (await repo.between(DateTime(2026, 10), DateTime(2026, 11))).single;
       await repo.hide(t);
 
       final s = await repo.importStatement(StatementResult([
-        StatementRow(date: DateTime(2026, 10, 3, 12), amountPaise: 25000, isDebit: true,
-            narration: 'UPI-SWIGGY-PAYMENT', counterparty: 'SWIGGY'),
+        StatementRow(
+            date: DateTime(2026, 10, 3, 12),
+            amountPaise: 25000,
+            isDebit: true,
+            narration: 'UPI-SWIGGY-PAYMENT',
+            counterparty: 'SWIGGY'),
       ], 0));
       expect(s.added, 0);
       expect(s.duplicates, 1);
-      expect(await repo.between(DateTime(2026, 10), DateTime(2026, 11)), isEmpty);
+      expect(
+          await repo.between(DateTime(2026, 10), DateTime(2026, 11)), isEmpty);
     });
   });
 
@@ -130,33 +170,56 @@ void main() {
     test('hidden payments leave the month view and can come back', () async {
       final repo = TxnRepository(
         db,
-        FakeSms([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]),
+        FakeSms([
+          RawSms(
+              id: 1,
+              address: 'VM-HDFCBK',
+              body: hdfcSwiggy,
+              date: DateTime(2026, 10, 3, 9))
+        ]),
         FakeInbox(),
       );
       await repo.syncSms();
-      final t = (await repo.between(DateTime(2026, 10), DateTime(2026, 11))).single;
+      final t =
+          (await repo.between(DateTime(2026, 10), DateTime(2026, 11))).single;
 
       await repo.hide(t);
-      expect(await repo.between(DateTime(2026, 10), DateTime(2026, 11)), isEmpty);
+      expect(
+          await repo.between(DateTime(2026, 10), DateTime(2026, 11)), isEmpty);
       final hidden = await repo.hidden();
       expect(hidden.single.key, t.key);
 
       await repo.unhide(hidden.single);
       expect(await repo.hidden(), isEmpty);
-      expect(await repo.between(DateTime(2026, 10), DateTime(2026, 11)), hasLength(1));
+      expect(await repo.between(DateTime(2026, 10), DateTime(2026, 11)),
+          hasLength(1));
     });
   });
 
   group('unparsed SMS', () {
-    const ucoBody = 'Your a/c 1234 has a withdrawal of INR 320.00 at 10:12 towards UPI/9876';
+    const ucoBody =
+        'Your a/c 1234 has a withdrawal of INR 320.00 at 10:12 towards UPI/9876';
 
-    test('bank-looking SMS the parser rejects are kept; OTPs are not', () async {
+    test('bank-looking SMS the parser rejects are kept; OTPs are not',
+        () async {
       final repo = TxnRepository(
         db,
         FakeSms([
-          RawSms(id: 7, address: 'AD-UCOBNK', body: ucoBody, date: DateTime(2026, 10, 3, 10)),
-          RawSms(id: 8, address: 'VM-HDFCBK', body: '123456 is your OTP for Rs 500.', date: DateTime(2026, 10, 3, 9)),
-          RawSms(id: 9, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9)),
+          RawSms(
+              id: 7,
+              address: 'AD-UCOBNK',
+              body: ucoBody,
+              date: DateTime(2026, 10, 3, 10)),
+          RawSms(
+              id: 8,
+              address: 'VM-HDFCBK',
+              body: '123456 is your OTP for Rs 500.',
+              date: DateTime(2026, 10, 3, 9)),
+          RawSms(
+              id: 9,
+              address: 'VM-HDFCBK',
+              body: hdfcSwiggy,
+              date: DateTime(2026, 10, 3, 9)),
         ]),
         FakeInbox(),
       );
@@ -178,41 +241,61 @@ void main() {
 
     test('resolved rows older than 90 days are purged on sync', () async {
       await db.insertUnparsed([
-        UnparsedSms(key: 'sms:1', sender: 'AD-UCOBNK', body: ucoBody,
-            time: DateTime.now().subtract(const Duration(days: 120)), state: 'ignored'),
-        UnparsedSms(key: 'sms:2', sender: 'AD-UCOBNK', body: ucoBody,
+        UnparsedSms(
+            key: 'sms:1',
+            sender: 'AD-UCOBNK',
+            body: ucoBody,
+            time: DateTime.now().subtract(const Duration(days: 120)),
+            state: 'ignored'),
+        UnparsedSms(
+            key: 'sms:2',
+            sender: 'AD-UCOBNK',
+            body: ucoBody,
             time: DateTime.now().subtract(const Duration(days: 120))),
       ]);
       final repo = TxnRepository(db, FakeSms(const []), FakeInbox());
       await repo.syncSms();
       final left = await repo.unparsed();
-      expect(left.map((u) => u.key), ['sms:2'], reason: 'open rows are never purged');
+      expect(left.map((u) => u.key), ['sms:2'],
+          reason: 'open rows are never purged');
 
       // The iPhone path purges too, even when the inbox is empty.
       await db.insertUnparsed([
-        UnparsedSms(key: 'shortcut:old', sender: 'AD-UCOBNK', body: ucoBody,
-            time: DateTime.now().subtract(const Duration(days: 120)), state: 'ignored'),
+        UnparsedSms(
+            key: 'shortcut:old',
+            sender: 'AD-UCOBNK',
+            body: ucoBody,
+            time: DateTime.now().subtract(const Duration(days: 120)),
+            state: 'ignored'),
       ]);
       await repo.syncShortcutInbox();
       // Handled rows are invisible, so prove the purge: re-inserting the key
       // only lands if the old row is gone (keys are unique, inserts ignore).
       await db.insertUnparsed([
-        UnparsedSms(key: 'shortcut:old', sender: 'AD-UCOBNK', body: ucoBody, time: DateTime.now()),
+        UnparsedSms(
+            key: 'shortcut:old',
+            sender: 'AD-UCOBNK',
+            body: ucoBody,
+            time: DateTime.now()),
       ]);
-      expect((await repo.unparsed()).map((u) => u.key), containsAll(['sms:2', 'shortcut:old']));
+      expect((await repo.unparsed()).map((u) => u.key),
+          containsAll(['sms:2', 'shortcut:old']));
     });
   });
 
   group('openReadOnly', () {
-    test('reads rules, refuses writes, and leaves the main connection open', () async {
+    test('reads rules, refuses writes, and leaves the main connection open',
+        () async {
       final dir = await Directory.systemTemp.createTemp('upitrack_test');
       final path = p.join(dir.path, 'upitrack.db');
       final main = await AppDb.open(factory: databaseFactoryFfi, path: path);
       await main.setCategoryForPayee('SWIGGY', 'Groceries');
 
-      final ro = await AppDb.openReadOnly(factory: databaseFactoryFfi, path: path);
+      final ro =
+          await AppDb.openReadOnly(factory: databaseFactoryFfi, path: path);
       expect(await ro.rules(), {'SWIGGY': 'Groceries'});
-      await expectLater(ro.setMeta('k', 'v'), throwsA(isA<DatabaseException>()));
+      await expectLater(
+          ro.setMeta('k', 'v'), throwsA(isA<DatabaseException>()));
       await ro.close();
 
       // The app's own connection is unaffected by the read-only close.
@@ -223,14 +306,16 @@ void main() {
 
     test('fails when the database file does not exist yet', () async {
       await expectLater(
-        AppDb.openReadOnly(factory: databaseFactoryFfi, path: '/nonexistent/upitrack.db'),
+        AppDb.openReadOnly(
+            factory: databaseFactoryFfi, path: '/nonexistent/upitrack.db'),
         throwsA(anything),
       );
     });
   });
 
   group('schema migration', () {
-    test('a version-1 database gains the unparsed table and keeps its data', () async {
+    test('a version-1 database gains the unparsed table and keeps its data',
+        () async {
       final dir = await Directory.systemTemp.createTemp('upitrack_v1');
       final path = p.join(dir.path, 'upitrack.db');
 
@@ -262,23 +347,34 @@ void main() {
             await db.execute('CREATE INDEX idx_txns_ts ON txns(ts)');
             await db.execute(
                 'CREATE TABLE rules(counterparty TEXT PRIMARY KEY, category TEXT NOT NULL)');
-            await db.execute('CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
+            await db.execute(
+                'CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
           },
         ),
       );
-      await v1.insert('rules', {'counterparty': 'SWIGGY', 'category': 'Groceries'});
+      await v1
+          .insert('rules', {'counterparty': 'SWIGGY', 'category': 'Groceries'});
       await v1.insert('txns', {
-        'key': 'ref:1:d', 'amount_paise': 100, 'is_debit': 1, 'counterparty': 'SWIGGY',
-        'channel': 'UPI', 'category': 'Groceries', 'ts': 1,
+        'key': 'ref:1:d',
+        'amount_paise': 100,
+        'is_debit': 1,
+        'counterparty': 'SWIGGY',
+        'channel': 'UPI',
+        'category': 'Groceries',
+        'ts': 1,
       });
       await v1.close();
 
       final db = await AppDb.open(factory: databaseFactoryFfi, path: path);
       expect(await db.rules(), {'SWIGGY': 'Groceries'});
-      expect(await db.between(DateTime.fromMillisecondsSinceEpoch(0), DateTime(2100)), hasLength(1));
+      expect(
+          await db.between(
+              DateTime.fromMillisecondsSinceEpoch(0), DateTime(2100)),
+          hasLength(1));
       // The v2 table exists and works.
       await db.insertUnparsed([
-        UnparsedSms(key: 'sms:1', sender: 'AD-UCOBNK', body: 'x', time: DateTime(2026)),
+        UnparsedSms(
+            key: 'sms:1', sender: 'AD-UCOBNK', body: 'x', time: DateTime(2026)),
       ]);
       expect(await db.openUnparsed(), hasLength(1));
       await db.close();
@@ -289,16 +385,29 @@ void main() {
   group('accounts', () {
     const hdfcChai = 'Sent Rs.50.00\nFrom HDFC Bank A/C *1234\nTo CHAI POINT\n'
         'On 04/10/26\nRef 427600000055';
-    const sbiZomato = 'Dear UPI user A/C X5678 debited by 120.0 on date 03Oct26 '
+    const sbiZomato =
+        'Dear UPI user A/C X5678 debited by 120.0 on date 03Oct26 '
         'trf to ZOMATO Refno 427698765432. If not u? call 1800111109. -SBI';
 
     test('discovered from SMS, most-used first', () async {
       final repo = TxnRepository(
         db,
         FakeSms([
-          RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9)),
-          RawSms(id: 2, address: 'VM-HDFCBK', body: hdfcChai, date: DateTime(2026, 10, 4, 9)),
-          RawSms(id: 3, address: 'AD-SBIUPI-S', body: sbiZomato, date: DateTime(2026, 10, 3, 10)),
+          RawSms(
+              id: 1,
+              address: 'VM-HDFCBK',
+              body: hdfcSwiggy,
+              date: DateTime(2026, 10, 3, 9)),
+          RawSms(
+              id: 2,
+              address: 'VM-HDFCBK',
+              body: hdfcChai,
+              date: DateTime(2026, 10, 4, 9)),
+          RawSms(
+              id: 3,
+              address: 'AD-SBIUPI-S',
+              body: sbiZomato,
+              date: DateTime(2026, 10, 3, 10)),
         ]),
         FakeInbox(),
       );
@@ -311,8 +420,12 @@ void main() {
 
     test('empty when nothing names an account', () async {
       final repo = TxnRepository(db, FakeSms(const []), FakeInbox());
-      await repo.addManual(amountPaise: 100, isDebit: true, counterparty: 'Cash',
-          category: 'Food', time: DateTime(2026, 10, 1));
+      await repo.addManual(
+          amountPaise: 100,
+          isDebit: true,
+          counterparty: 'Cash',
+          category: 'Food',
+          time: DateTime(2026, 10, 1));
       expect(await repo.accounts(), isEmpty);
     });
   });
@@ -320,31 +433,41 @@ void main() {
   group('self transfers', () {
     const hdfcOut = 'Sent Rs.5,000.00\nFrom HDFC Bank A/C *1234\nTo me@oksbi\n'
         'On 03/10/26\nRef 427600000101';
-    const sbiIn = 'Dear SBI UPI User, ur A/cX5678 credited by Rs5000 on 03Oct26 by '
+    const sbiIn =
+        'Dear SBI UPI User, ur A/cX5678 credited by Rs5000 on 03Oct26 by '
         '(Ref no 427600000102)';
-    const hdfcIn = 'Received Rs.5,000.00 in your HDFC Bank A/c XX1234 from VPA me@oksbi '
+    const hdfcIn =
+        'Received Rs.5,000.00 in your HDFC Bank A/c XX1234 from VPA me@oksbi '
         'on 03-10-26. UPI Ref: 427600000103';
     final day = DateTime(2026, 10, 3, 9);
-    TxnRepository repo(List<RawSms> sms) => TxnRepository(db, FakeSms(sms), FakeInbox());
+    TxnRepository repo(List<RawSms> sms) =>
+        TxnRepository(db, FakeSms(sms), FakeInbox());
     Future<List<Txn>> october(TxnRepository r) =>
         r.between(DateTime(2026, 10), DateTime(2026, 11));
 
-    test('a debit and a credit across two own accounts become Self transfer', () async {
+    test('a debit and a credit across two own accounts become Self transfer',
+        () async {
       final r = repo([
         RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day),
-        RawSms(id: 2, address: 'AD-SBIUPI', body: sbiIn, date: day.add(const Duration(minutes: 1))),
+        RawSms(
+            id: 2,
+            address: 'AD-SBIUPI',
+            body: sbiIn,
+            date: day.add(const Duration(minutes: 1))),
       ]);
       await r.syncSms();
       final txns = await october(r);
       expect(txns, hasLength(2));
-      expect(txns.map((t) => t.category), everyElement(Categorizer.selfTransfer));
+      expect(
+          txns.map((t) => t.category), everyElement(Categorizer.selfTransfer));
       final s = MonthSummary.from(txns, now: day);
       expect(s.spentPaise, 0);
       expect(s.receivedPaise, 0);
 
       // A second sync changes nothing.
       await r.syncSms();
-      expect((await october(r)).map((t) => t.category), everyElement(Categorizer.selfTransfer));
+      expect((await october(r)).map((t) => t.category),
+          everyElement(Categorizer.selfTransfer));
     });
 
     test('same account on both sides is not a self transfer', () async {
@@ -358,16 +481,20 @@ void main() {
     });
 
     test('a category the user set by hand is left alone', () async {
-      final first = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day)]);
+      final first =
+          repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day)]);
       await first.syncSms();
-      await first.setCategory((await october(first)).single, 'Groceries', forPayee: false);
+      await first.setCategory((await october(first)).single, 'Groceries',
+          forPayee: false);
 
       final second = repo([
         RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day),
         RawSms(id: 2, address: 'AD-SBIUPI', body: sbiIn, date: day),
       ]);
       await second.syncSms();
-      final byDirection = {for (final t in await october(second)) t.isDebit: t.category};
+      final byDirection = {
+        for (final t in await october(second)) t.isDebit: t.category
+      };
       expect(byDirection[true], 'Groceries');
       expect(byDirection[false], 'Income');
     });
@@ -378,17 +505,19 @@ void main() {
         RawSms(id: 2, address: 'AD-SBIUPI', body: sbiIn, date: day),
       ]);
       await r.syncSms(); // pairs once here
-      expect(await r.pairSelfTransfers(DateTime(2026, 10), DateTime(2026, 11)), 0,
+      expect(
+          await r.pairSelfTransfers(DateTime(2026, 10), DateTime(2026, 11)), 0,
           reason: 'already paired rows are skipped');
     });
 
     test('Self transfer is never saved as a payee rule', () async {
-      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day)]);
+      final r =
+          repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day)]);
       await r.syncSms();
       final t = (await october(r)).single;
       await r.setCategory(t, Categorizer.selfTransfer, forPayee: true);
-      expect(
-          (await db.rules()).keys.map((k) => k.toLowerCase()), isNot(contains('me@oksbi')));
+      expect((await db.rules()).keys.map((k) => k.toLowerCase()),
+          isNot(contains('me@oksbi')));
       expect((await october(r)).single.category, Categorizer.selfTransfer);
     });
 
@@ -400,10 +529,13 @@ void main() {
       final r = repo(sms);
       await r.syncSms();
       final txns = await october(r);
-      await r.setCategory(txns.firstWhere((t) => t.isDebit), 'Transfers', forPayee: false);
-      await r.setCategory(txns.firstWhere((t) => !t.isDebit), 'Income', forPayee: false);
+      await r.setCategory(txns.firstWhere((t) => t.isDebit), 'Transfers',
+          forPayee: false);
+      await r.setCategory(txns.firstWhere((t) => !t.isDebit), 'Income',
+          forPayee: false);
 
-      const hdfcChai = 'Sent Rs.50.00\nFrom HDFC Bank A/C *1234\nTo CHAI POINT\n'
+      const hdfcChai =
+          'Sent Rs.50.00\nFrom HDFC Bank A/C *1234\nTo CHAI POINT\n'
           'On 03/10/26\nRef 427600000055';
       final r2 = repo([
         ...sms,
@@ -411,15 +543,21 @@ void main() {
       ]);
       await r2.syncSms();
       final after = await october(r2);
-      expect(after.firstWhere((t) => t.isDebit && t.amountPaise == 500000).category,
+      expect(
+          after
+              .firstWhere((t) => t.isDebit && t.amountPaise == 500000)
+              .category,
           'Transfers');
       expect(after.firstWhere((t) => !t.isDebit).category, 'Income');
-      expect(await r2.pairSelfTransfers(DateTime(2026, 10), DateTime(2026, 11)), 0);
+      expect(await r2.pairSelfTransfers(DateTime(2026, 10), DateTime(2026, 11)),
+          0);
     });
   });
 
   group('schema v3', () {
-    test('a version-2 database gains edit_ts and rules.ts; hand-set categories are stamped', () async {
+    test(
+        'a version-2 database gains edit_ts and rules.ts; hand-set categories are stamped',
+        () async {
       final dir = await Directory.systemTemp.createTemp('upitrack_v2');
       final path = p.join(dir.path, 'upitrack.db');
       final v2 = await databaseFactoryFfi.openDatabase(
@@ -448,7 +586,8 @@ void main() {
               )''');
             await db.execute(
                 'CREATE TABLE rules(counterparty TEXT PRIMARY KEY, category TEXT NOT NULL)');
-            await db.execute('CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
+            await db.execute(
+                'CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
             await db.execute('''
               CREATE TABLE unparsed(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -462,20 +601,35 @@ void main() {
         ),
       );
       final ts = DateTime(2026, 10, 3).millisecondsSinceEpoch;
-      Map<String, Object?> row(String key, String cp, bool debit, String cat) => {
-            'key': key, 'amount_paise': 1000, 'is_debit': debit ? 1 : 0,
-            'counterparty': cp, 'channel': 'UPI', 'category': cat, 'ts': ts,
+      Map<String, Object?> row(String key, String cp, bool debit, String cat) =>
+          {
+            'key': key,
+            'amount_paise': 1000,
+            'is_debit': debit ? 1 : 0,
+            'counterparty': cp,
+            'channel': 'UPI',
+            'category': cat,
+            'ts': ts,
           };
-      await v2.insert('txns', row('a', 'SWIGGY', true, 'Food')); // the automatic guess
-      await v2.insert('txns', row('b', 'SWIGGY', true, 'Groceries')); // hand-set
-      await v2.insert('txns', row('c', 'me@oksbi', true, 'Self transfer')); // paired
-      final d = await v2.insert('txns', row('d', 'HDFC', false, 'Income')); // un-paired by hand
-      await v2.insert('rules', {'counterparty': 'ZOMATO', 'category': 'Groceries'});
+      await v2.insert(
+          'txns', row('a', 'SWIGGY', true, 'Food')); // the automatic guess
+      await v2.insert(
+          'txns', row('b', 'SWIGGY', true, 'Groceries')); // hand-set
+      await v2.insert(
+          'txns', row('c', 'me@oksbi', true, 'Self transfer')); // paired
+      final d = await v2.insert(
+          'txns', row('d', 'HDFC', false, 'Income')); // un-paired by hand
+      await v2
+          .insert('rules', {'counterparty': 'ZOMATO', 'category': 'Groceries'});
       await v2.insert('meta', {'k': 'unpaired_ids', 'v': '$d'});
       await v2.close();
 
       final db = await AppDb.open(factory: databaseFactoryFfi, path: path);
-      final byKey = {for (final t in await db.between(DateTime(2026, 10), DateTime(2026, 11))) t.key: t};
+      final byKey = {
+        for (final t
+            in await db.between(DateTime(2026, 10), DateTime(2026, 11)))
+          t.key: t
+      };
       expect(byKey['a']!.editTs, 0);
       expect(byKey['b']!.editTs, greaterThan(0));
       expect(byKey['c']!.editTs, 0);
@@ -489,23 +643,43 @@ void main() {
 
     test('Txn round-trips hidden and edit_ts', () {
       final t = Txn(
-        key: 'k', amountPaise: 1, isDebit: true, counterparty: 'x', channel: 'UPI',
-        category: 'Food', time: DateTime(2026, 10, 3), hidden: true, editTs: 42,
+        key: 'k',
+        amountPaise: 1,
+        isDebit: true,
+        counterparty: 'x',
+        channel: 'UPI',
+        category: 'Food',
+        time: DateTime(2026, 10, 3),
+        hidden: true,
+        editTs: 42,
       );
       final back = Txn.fromMap(t.toMap());
       expect(back.hidden, isTrue);
       expect(back.editTs, 42);
-      expect(Txn.fromMap({...t.toMap()}..remove('edit_ts')..remove('hidden')).editTs, 0);
+      expect(
+          Txn.fromMap({...t.toMap()}
+                ..remove('edit_ts')
+                ..remove('hidden'))
+              .editTs,
+          0);
     });
   });
 
   group('edit stamping and dirty flag', () {
-    TxnRepository repo(List<RawSms> sms) => TxnRepository(db, FakeSms(sms), FakeInbox());
+    TxnRepository repo(List<RawSms> sms) =>
+        TxnRepository(db, FakeSms(sms), FakeInbox());
     Future<Txn> only(TxnRepository r) async =>
         (await r.between(DateTime(2026, 10), DateTime(2026, 11))).single;
 
-    test('a new sync sets sync_dirty; a category change stamps edit_ts', () async {
-      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]);
+    test('a new sync sets sync_dirty; a category change stamps edit_ts',
+        () async {
+      final r = repo([
+        RawSms(
+            id: 1,
+            address: 'VM-HDFCBK',
+            body: hdfcSwiggy,
+            date: DateTime(2026, 10, 3, 9))
+      ]);
       expect(await db.getMeta('sync_dirty'), isNull);
       await r.syncSms();
       expect(await db.getMeta('sync_dirty'), '1');
@@ -518,7 +692,13 @@ void main() {
     });
 
     test('a payee rule stamps rules.ts and leaves edit_ts alone', () async {
-      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]);
+      final r = repo([
+        RawSms(
+            id: 1,
+            address: 'VM-HDFCBK',
+            body: hdfcSwiggy,
+            date: DateTime(2026, 10, 3, 9))
+      ]);
       await r.syncSms();
       await r.setCategory(await only(r), 'Groceries', forPayee: true);
       final t = await only(r);
@@ -528,7 +708,13 @@ void main() {
     });
 
     test('hide and unhide stamp edit_ts and set sync_dirty', () async {
-      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]);
+      final r = repo([
+        RawSms(
+            id: 1,
+            address: 'VM-HDFCBK',
+            body: hdfcSwiggy,
+            date: DateTime(2026, 10, 3, 9))
+      ]);
       await r.syncSms();
       await db.setMeta('sync_dirty', '0');
       await r.hide(await only(r));
@@ -545,17 +731,24 @@ void main() {
       final id = await db.deviceId();
       expect(id, hasLength(32));
       expect(await db.deviceId(), id, reason: 'generated once');
-      await r.addManual(amountPaise: 100, isDebit: true, counterparty: 'Cash',
-          category: 'Food', time: DateTime(2026, 10, 1));
+      await r.addManual(
+          amountPaise: 100,
+          isDebit: true,
+          counterparty: 'Cash',
+          category: 'Food',
+          time: DateTime(2026, 10, 1));
       final t = await only(r);
       expect(t.key, startsWith('manual:$id:'));
       expect(t.editTs, greaterThan(0));
     });
 
-    test('pairing never touches an edited row and stamps nothing itself', () async {
-      const hdfcOut = 'Sent Rs.5,000.00\nFrom HDFC Bank A/C *1234\nTo me@oksbi\n'
+    test('pairing never touches an edited row and stamps nothing itself',
+        () async {
+      const hdfcOut =
+          'Sent Rs.5,000.00\nFrom HDFC Bank A/C *1234\nTo me@oksbi\n'
           'On 03/10/26\nRef 427600000201';
-      const sbiIn = 'Dear SBI UPI User, ur A/cX5678 credited by Rs5000 on 03Oct26 by '
+      const sbiIn =
+          'Dear SBI UPI User, ur A/cX5678 credited by Rs5000 on 03Oct26 by '
           '(Ref no 427600000202)';
       final day = DateTime(2026, 10, 3, 9);
       final r = repo([
@@ -564,8 +757,10 @@ void main() {
       ]);
       await r.syncSms();
       final paired = await r.between(DateTime(2026, 10), DateTime(2026, 11));
-      expect(paired.map((t) => t.category), everyElement(Categorizer.selfTransfer));
-      expect(paired.map((t) => t.editTs), everyElement(0), reason: 'pairing is automatic');
+      expect(paired.map((t) => t.category),
+          everyElement(Categorizer.selfTransfer));
+      expect(paired.map((t) => t.editTs), everyElement(0),
+          reason: 'pairing is automatic');
       expect(await db.getMeta('unpaired_ids'), isNull);
     });
   });

@@ -23,12 +23,14 @@ class ShortcutInbox {
     await for (final entity in folder.list()) {
       if (entity is! File || !entity.path.endsWith('.json')) continue;
       try {
-        final json = jsonDecode(await entity.readAsString()) as Map<String, dynamic>;
+        final json =
+            jsonDecode(await entity.readAsString()) as Map<String, dynamic>;
         messages.add(InboxMessage(
           id: p.basenameWithoutExtension(entity.path),
           sender: json['sender'] as String? ?? '',
           body: json['body'] as String? ?? '',
-          date: DateTime.fromMillisecondsSinceEpoch((json['date'] as num).toInt()),
+          date: DateTime.fromMillisecondsSinceEpoch(
+              (json['date'] as num).toInt()),
         ));
       } catch (_) {
         // A half-written or corrupt file: drop it.

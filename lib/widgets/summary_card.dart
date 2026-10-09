@@ -4,7 +4,8 @@ import '../models/summary.dart';
 import '../util/format.dart';
 
 class SummaryCard extends StatelessWidget {
-  const SummaryCard({super.key, required this.summary, required this.showToday});
+  const SummaryCard(
+      {super.key, required this.summary, required this.showToday});
 
   final MonthSummary summary;
 
