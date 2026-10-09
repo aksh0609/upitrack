@@ -7,7 +7,10 @@ import 'package:upitrack/data/db.dart';
 import 'package:upitrack/data/repository.dart';
 import 'package:upitrack/data/shortcut_inbox.dart';
 import 'package:upitrack/data/sms_source.dart';
+import 'package:upitrack/models/summary.dart';
+import 'package:upitrack/models/txn.dart';
 import 'package:upitrack/models/unparsed.dart';
+import 'package:upitrack/parser/categorizer.dart';
 import 'package:upitrack/parser/statement_parser.dart';
 
 /// Returns canned SMS instead of reading the Android inbox.
@@ -311,6 +314,72 @@ void main() {
       await repo.addManual(amountPaise: 100, isDebit: true, counterparty: 'Cash',
           category: 'Food', time: DateTime(2026, 10, 1));
       expect(await repo.accounts(), isEmpty);
+    });
+  });
+
+  group('self transfers', () {
+    const hdfcOut = 'Sent Rs.5,000.00\nFrom HDFC Bank A/C *1234\nTo me@oksbi\n'
+        'On 03/10/26\nRef 427600000101';
+    const sbiIn = 'Dear SBI UPI User, ur A/cX5678 credited by Rs5000 on 03Oct26 by '
+        '(Ref no 427600000102)';
+    const hdfcIn = 'Received Rs.5,000.00 in your HDFC Bank A/c XX1234 from VPA me@oksbi '
+        'on 03-10-26. UPI Ref: 427600000103';
+    final day = DateTime(2026, 10, 3, 9);
+    TxnRepository repo(List<RawSms> sms) => TxnRepository(db, FakeSms(sms), FakeInbox());
+    Future<List<Txn>> october(TxnRepository r) =>
+        r.between(DateTime(2026, 10), DateTime(2026, 11));
+
+    test('a debit and a credit across two own accounts become Self transfer', () async {
+      final r = repo([
+        RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day),
+        RawSms(id: 2, address: 'AD-SBIUPI', body: sbiIn, date: day.add(const Duration(minutes: 1))),
+      ]);
+      await r.syncSms();
+      final txns = await october(r);
+      expect(txns, hasLength(2));
+      expect(txns.map((t) => t.category), everyElement(Categorizer.selfTransfer));
+      final s = MonthSummary.from(txns, now: day);
+      expect(s.spentPaise, 0);
+      expect(s.receivedPaise, 0);
+
+      // A second sync changes nothing.
+      await r.syncSms();
+      expect((await october(r)).map((t) => t.category), everyElement(Categorizer.selfTransfer));
+    });
+
+    test('same account on both sides is not a self transfer', () async {
+      final r = repo([
+        RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day),
+        RawSms(id: 2, address: 'VM-HDFCBK', body: hdfcIn, date: day),
+      ]);
+      await r.syncSms();
+      expect((await october(r)).map((t) => t.category),
+          isNot(contains(Categorizer.selfTransfer)));
+    });
+
+    test('a category the user set by hand is left alone', () async {
+      final first = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day)]);
+      await first.syncSms();
+      await first.setCategory((await october(first)).single, 'Groceries', forPayee: false);
+
+      final second = repo([
+        RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day),
+        RawSms(id: 2, address: 'AD-SBIUPI', body: sbiIn, date: day),
+      ]);
+      await second.syncSms();
+      final byDirection = {for (final t in await october(second)) t.isDebit: t.category};
+      expect(byDirection[true], 'Groceries');
+      expect(byDirection[false], 'Income');
+    });
+
+    test('pairSelfTransfers reports how many pairs it made', () async {
+      final r = repo([
+        RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day),
+        RawSms(id: 2, address: 'AD-SBIUPI', body: sbiIn, date: day),
+      ]);
+      await r.syncSms(); // pairs once here
+      expect(await r.pairSelfTransfers(DateTime(2026, 10), DateTime(2026, 11)), 0,
+          reason: 'already paired rows are skipped');
     });
   });
 }

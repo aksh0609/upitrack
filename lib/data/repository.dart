@@ -73,6 +73,7 @@ class TxnRepository {
     }
 
     final added = await _db.insertAll(txns);
+    if (added > 0) await _pairAround(txns);
     await _db.insertUnparsed(unparsed);
     await _db.purgeUnparsed(before: now.subtract(unparsedRetention));
     await _db.setMeta('last_sync_ms', now.millisecondsSinceEpoch.toString());
@@ -105,6 +106,7 @@ class TxnRepository {
       }
     }
     final added = await _db.insertAll(txns);
+    if (added > 0) await _pairAround(txns);
     await _db.insertUnparsed(unparsed);
     await _inbox.remove(messages);
 
@@ -215,6 +217,7 @@ class TxnRepository {
     }
 
     final added = await _db.insertAll(txns);
+    if (added > 0) await _pairAround(txns);
     return ImportSummary(
       added: added,
       duplicates: duplicates + (txns.length - added),
@@ -236,6 +239,61 @@ class TxnRepository {
       h = (h * 0x01000193) & 0xffffffff;
     }
     return h.toRadixString(16);
+  }
+
+  // -------------------------------------------------------- self transfers
+
+  /// Labels debit/credit pairs that move money between the user's own
+  /// accounts (spec §3.3): same amount, same day, both with an account, and
+  /// different accounts. Only rows still carrying their automatic category
+  /// are touched, so a category the user set by hand is never overridden.
+  /// Returns the number of pairs found.
+  Future<int> pairSelfTransfers(DateTime from, DateTime to) async {
+    final rules = await _db.rules();
+    final txns = await _db.between(from, to); // newest first
+    bool automatic(Txn t) =>
+        t.category ==
+        Categorizer.categorizeWith(rules, t.counterparty, isDebit: t.isDebit);
+    final candidates = txns
+        .where((t) =>
+            t.account != null &&
+            t.category != Categorizer.selfTransfer &&
+            automatic(t))
+        .toList();
+
+    final usedCredits = <int>{};
+    var pairs = 0;
+    for (final d in candidates.where((t) => t.isDebit)) {
+      for (final c in candidates.where((t) => !t.isDebit)) {
+        if (usedCredits.contains(c.id)) continue;
+        if (c.amountPaise != d.amountPaise) continue;
+        if (_ymd(c.time) != _ymd(d.time)) continue;
+        if (c.bank == d.bank && c.account == d.account) continue;
+        await _db.setCategory(d.id!, Categorizer.selfTransfer);
+        await _db.setCategory(c.id!, Categorizer.selfTransfer);
+        usedCredits.add(c.id!);
+        pairs++;
+        break;
+      }
+    }
+    return pairs;
+  }
+
+  /// Runs [pairSelfTransfers] over the days around rows a sync or import
+  /// just added (one day either side, since the two SMS can straddle
+  /// midnight).
+  Future<void> _pairAround(List<Txn> added) async {
+    if (added.isEmpty) return;
+    var first = added.first.time;
+    var last = added.first.time;
+    for (final t in added) {
+      if (t.time.isBefore(first)) first = t.time;
+      if (t.time.isAfter(last)) last = t.time;
+    }
+    await pairSelfTransfers(
+      DateTime(first.year, first.month, first.day - 1),
+      DateTime(last.year, last.month, last.day + 2),
+    );
   }
 
   // ---------------------------------------------------------------- shared
