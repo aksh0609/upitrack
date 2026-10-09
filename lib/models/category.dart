@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../parser/categorizer.dart';
+
 class CategoryInfo {
   const CategoryInfo(this.name, this.icon, this.color);
 
@@ -21,6 +23,7 @@ const List<CategoryInfo> kCategories = [
   CategoryInfo('Education', Icons.school, Color(0xFF6A4C93)),
   CategoryInfo('Transfers', Icons.swap_horiz, Color(0xFF6C757D)),
   CategoryInfo('Income', Icons.account_balance_wallet, Color(0xFF2E7D32)),
+  CategoryInfo(Categorizer.selfTransfer, Icons.swap_vert, Color(0xFF9E9E9E)),
   CategoryInfo('Others', Icons.category, Color(0xFF8D99AE)),
 ];
 
