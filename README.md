@@ -117,7 +117,7 @@ Menu → **Sync** → *Sign in with Google*. The first device chooses a passphra
 
 ### Owner setup (once, by whoever publishes the app)
 
-Google sign-in needs a Google Cloud project — no code, about ten minutes:
+Google sign-in needs a Google Cloud project — about ten minutes, plus one constant to paste in step 4:
 
 1. [console.cloud.google.com](https://console.cloud.google.com) → New project (e.g. "UPI Track").
 2. APIs & Services → Library → enable **Google Drive API**.
