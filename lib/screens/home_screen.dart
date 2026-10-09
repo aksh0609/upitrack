@@ -8,17 +8,21 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/repository.dart';
+import '../models/account.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
-import '../util/format.dart';
+import '../util/search.dart';
 import '../util/update_check.dart';
 import '../widgets/category_bars.dart';
+import '../widgets/merchant_bars.dart';
 import '../widgets/summary_card.dart';
-import '../widgets/txn_tile.dart';
+import '../widgets/txn_day_list.dart';
 import 'add_txn_sheet.dart';
 import 'hidden_screen.dart';
 import 'import_flow.dart';
 import 'iphone_setup_screen.dart';
+import 'merchant_screen.dart';
+import 'merchants_screen.dart';
 import 'txn_sheet.dart';
 import 'unparsed_screen.dart';
 
@@ -41,8 +45,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Txn> _txns = const [];
   bool _syncing = false;
   bool _upiOnly = false;
+  bool _searching = false;
+  final TextEditingController _search = TextEditingController();
   int _shortcutCount = 0;
   int _unparsedCount = 0;
+  List<AccountRef> _accounts = const [];
+  AccountRef? _account;
   UpdateInfo? _update;
 
   bool get _isCurrentMonth {
@@ -54,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _search.addListener(() => setState(() {}));
     _checkAccess();
     _checkUpdate();
   }
@@ -75,6 +84,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _search.dispose();
     super.dispose();
   }
 
@@ -147,10 +157,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final txns = await widget.repository
         .between(_month, DateTime(_month.year, _month.month + 1));
     final unparsed = await widget.repository.unparsed();
+    final accounts = await widget.repository.accounts();
     if (mounted) {
       setState(() {
         _txns = txns;
         _unparsedCount = unparsed.length;
+        _accounts = accounts;
+        // Chips are hidden below two accounts, so a lingering pick would hide rows.
+        if (accounts.length < 2 || !accounts.contains(_account)) _account = null;
       });
     }
   }
@@ -160,6 +174,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message), action: action));
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searching = !_searching;
+      if (!_searching) _search.clear();
+    });
   }
 
   void _changeMonth(int delta) {
@@ -212,6 +233,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _load();
   }
 
+  Future<void> _openMerchant(String merchant) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MerchantScreen(
+        repository: widget.repository,
+        merchant: merchant,
+        month: _month,
+      ),
+    ));
+    await _load();
+  }
+
+  Future<void> _openMerchants(MonthSummary summary) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MerchantsScreen(
+        repository: widget.repository,
+        month: _month,
+        totals: summary.byMerchant,
+      ),
+    ));
+    await _load();
+  }
+
   Future<void> _addManual() async {
     final added = await showAddTxnSheet(context, widget.repository);
     if (added == true) await _load();
@@ -219,15 +262,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final visible =
-        _upiOnly ? _txns.where((t) => t.channel == 'UPI').toList() : _txns;
+    final visible = _txns
+        .where((t) => !_upiOnly || t.channel == 'UPI')
+        .where((t) =>
+            _account == null ||
+            (t.bank == _account!.bank && t.account == _account!.last4))
+        .where((t) => matchesSearch(t, _search.text))
+        .toList();
     final summary = MonthSummary.from(visible);
     final text = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('UPI Track'),
+        title: _searching
+            ? TextField(
+                controller: _search,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search payee or merchant',
+                  border: InputBorder.none,
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: _search.clear,
+                        ),
+                ),
+              )
+            : const Text('UPI Track'),
         actions: [
+          IconButton(
+            tooltip: _searching ? 'Close search' : 'Search',
+            icon: Icon(_searching ? Icons.search_off : Icons.search),
+            onPressed: _toggleSearch,
+          ),
           if (_syncing)
             const Padding(
               padding: EdgeInsets.all(16),
@@ -311,6 +379,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               canGoForward: !_isCurrentMonth,
               onChanged: _changeMonth,
             ),
+            if (_accounts.length >= 2)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('All'),
+                      selected: _account == null,
+                      onSelected: (_) => setState(() => _account = null),
+                    ),
+                    for (final a in _accounts) ...[
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: Text(accountLabel(a)),
+                        selected: _account == a,
+                        onSelected: (_) => setState(() => _account = a),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             const SizedBox(height: 8),
             SummaryCard(summary: summary, showToday: _isCurrentMonth),
             if (summary.byCategory.isNotEmpty) ...[
@@ -318,6 +408,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Text('Where it went', style: text.titleMedium),
               const SizedBox(height: 8),
               CategoryBars(totals: summary.byCategory),
+            ],
+            if (summary.byMerchant.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(child: Text('Top merchants', style: text.titleMedium)),
+                  if (summary.byMerchant.length > 5)
+                    TextButton(
+                      onPressed: () => _openMerchants(summary),
+                      child: const Text('See all'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              MerchantBars(
+                totals: summary.byMerchant,
+                limit: 5,
+                onTap: _openMerchant,
+              ),
             ],
             const SizedBox(height: 24),
             Row(
@@ -331,35 +440,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
             const SizedBox(height: 4),
-            if (visible.isEmpty)
+            if (visible.isEmpty && _search.text.trim().isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Text('No payments match.', textAlign: TextAlign.center),
+              )
+            else if (visible.isEmpty)
               _EmptyState(
                   waitingForAccess: _access != _Access.granted &&
                       !(_access == _Access.iphone && _shortcutCount > 0))
             else
-              ..._groupedByDay(visible, text),
+              ...txnsGroupedByDay(context, visible,
+                  onTap: _openTxn, onHide: _hideTxn),
           ],
         ),
       ),
     );
-  }
-
-  List<Widget> _groupedByDay(List<Txn> txns, TextTheme text) {
-    final widgets = <Widget>[];
-    DateTime? currentDay;
-    for (final t in txns) {
-      final day = DateTime(t.time.year, t.time.month, t.time.day);
-      if (day != currentDay) {
-        currentDay = day;
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(top: 12, bottom: 2),
-          child: Text(dayLabel(day),
-              style: text.labelLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        ));
-      }
-      widgets.add(TxnTile(txn: t, onTap: () => _openTxn(t), onHide: () => _hideTxn(t)));
-    }
-    return widgets;
   }
 }
 

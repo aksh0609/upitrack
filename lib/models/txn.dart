@@ -40,6 +40,9 @@ class Txn {
   final String? raw;
   final bool manual;
 
+  /// A remembered category makes sense only for real, parsed payees.
+  bool get canApplyToPayee => isDebit && !manual && counterparty != 'Unknown';
+
   /// Where it came from: 'sms', 'shortcut' (iPhone), 'statement' or 'manual'.
   final String source;
 

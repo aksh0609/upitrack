@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import '../models/account.dart';
 import '../models/txn.dart';
 import '../models/unparsed.dart';
 
@@ -117,6 +118,18 @@ class AppDb {
       orderBy: 'ts DESC',
     );
     return rows.map(Txn.fromMap).toList();
+  }
+
+  /// Accounts seen in the SMS, most-used first.
+  Future<List<AccountRef>> accounts() async {
+    final rows = await _db.rawQuery(
+        'SELECT bank, account, COUNT(*) AS n FROM txns '
+        'WHERE account IS NOT NULL AND hidden = 0 '
+        'GROUP BY bank, account ORDER BY n DESC');
+    return [
+      for (final r in rows)
+        (bank: r['bank'] as String?, last4: r['account'] as String),
+    ];
   }
 
   Future<void> setCategory(int id, String category) => _db.update(

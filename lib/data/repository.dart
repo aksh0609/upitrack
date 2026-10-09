@@ -1,3 +1,4 @@
+import '../models/account.dart';
 import '../models/txn.dart';
 import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
@@ -72,6 +73,7 @@ class TxnRepository {
     }
 
     final added = await _db.insertAll(txns);
+    if (added > 0) await _pairAround(txns);
     await _db.insertUnparsed(unparsed);
     await _db.purgeUnparsed(before: now.subtract(unparsedRetention));
     await _db.setMeta('last_sync_ms', now.millisecondsSinceEpoch.toString());
@@ -104,6 +106,7 @@ class TxnRepository {
       }
     }
     final added = await _db.insertAll(txns);
+    if (added > 0) await _pairAround(txns);
     await _db.insertUnparsed(unparsed);
     await _inbox.remove(messages);
 
@@ -214,6 +217,7 @@ class TxnRepository {
     }
 
     final added = await _db.insertAll(txns);
+    if (added > 0) await _pairAround(txns);
     return ImportSummary(
       added: added,
       duplicates: duplicates + (txns.length - added),
@@ -237,21 +241,97 @@ class TxnRepository {
     return h.toRadixString(16);
   }
 
+  // -------------------------------------------------------- self transfers
+
+  /// Labels debit/credit pairs that move money between the user's own
+  /// accounts (spec §3.3): same amount, same day, both with an account, and
+  /// different accounts. Only rows still carrying their automatic category
+  /// are touched, so a category the user set by hand is never overridden.
+  /// Returns the number of pairs found.
+  Future<int> pairSelfTransfers(DateTime from, DateTime to) async {
+    final rules = await _db.rules();
+    final txns = await _db.between(from, to); // newest first
+    final unpaired = await _unpairedIds();
+    bool automatic(Txn t) =>
+        t.category ==
+        Categorizer.categorizeWith(rules, t.counterparty, isDebit: t.isDebit);
+    final candidates = txns
+        .where((t) =>
+            t.account != null &&
+            !unpaired.contains(t.id) &&
+            t.category != Categorizer.selfTransfer &&
+            automatic(t))
+        .toList();
+
+    final usedCredits = <int>{};
+    var pairs = 0;
+    for (final d in candidates.where((t) => t.isDebit)) {
+      for (final c in candidates.where((t) => !t.isDebit)) {
+        if (usedCredits.contains(c.id)) continue;
+        if (c.amountPaise != d.amountPaise) continue;
+        if (_ymd(c.time) != _ymd(d.time)) continue;
+        if (c.bank == d.bank && c.account == d.account) continue;
+        await _db.setCategory(d.id!, Categorizer.selfTransfer);
+        await _db.setCategory(c.id!, Categorizer.selfTransfer);
+        usedCredits.add(c.id!);
+        pairs++;
+        break;
+      }
+    }
+    return pairs;
+  }
+
+  /// Ids the user manually took out of a pair; they are never re-paired.
+  // ponytail: unpaired_ids grows by one per manual un-pair; Phase 2's edit_ts replaces it.
+  Future<Set<int>> _unpairedIds() async {
+    final raw = await _db.getMeta('unpaired_ids') ?? '';
+    return raw.split(',').where((s) => s.isNotEmpty).map(int.parse).toSet();
+  }
+
+  /// Runs [pairSelfTransfers] over the days around rows a sync or import
+  /// just added. The one-day margin widens the scan to the whole calendar
+  /// day on either side of the added rows' timestamps.
+  Future<void> _pairAround(List<Txn> added) async {
+    if (added.isEmpty) return;
+    var first = added.first.time;
+    var last = added.first.time;
+    for (final t in added) {
+      if (t.time.isBefore(first)) first = t.time;
+      if (t.time.isAfter(last)) last = t.time;
+    }
+    await pairSelfTransfers(
+      DateTime(first.year, first.month, first.day - 1),
+      DateTime(last.year, last.month, last.day + 2),
+    );
+  }
+
   // ---------------------------------------------------------------- shared
 
   Future<List<Txn>> between(DateTime from, DateTime to) =>
       _db.between(from, to);
 
-  Future<void> setCategory(Txn t, String category, {required bool forPayee}) =>
-      forPayee
-          ? _db.setCategoryForPayee(t.counterparty, category)
-          : _db.setCategory(t.id!, category);
+  Future<void> setCategory(Txn t, String category,
+      {required bool forPayee}) async {
+    if (t.category == Categorizer.selfTransfer &&
+        category != Categorizer.selfTransfer) {
+      final ids = await _unpairedIds()
+        ..add(t.id!);
+      await _db.setMeta('unpaired_ids', ids.join(','));
+    }
+    // Spec §3.3: Self transfer is never a payee rule.
+    if (forPayee && category != Categorizer.selfTransfer) {
+      await _db.setCategoryForPayee(t.counterparty, category);
+    } else {
+      await _db.setCategory(t.id!, category);
+    }
+  }
 
   Future<void> hide(Txn t) => _db.hide(t.id!);
 
   Future<List<Txn>> hidden() => _db.hidden();
 
   Future<void> unhide(Txn t) => _db.unhide(t.id!);
+  Future<List<AccountRef>> accounts() => _db.accounts();
 
   // ----------------------------------------------------------- unparsed
 
