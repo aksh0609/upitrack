@@ -29,6 +29,7 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - **Search** by payee or merchant
 - **Accounts:** every bank account seen in your SMS becomes a chip (HDFC •••1234, SBI •••5678) that filters the whole month, no setup needed
 - **Self transfers:** moving money between your own accounts is labelled "Self transfer" and left out of spent and received
+- **Sync (optional):** sign in with Google and choose a passphrase; your payments, categories and hidden rows are encrypted on the phone and kept in a hidden folder of your own Google Drive, so a second phone shows the same data. Google cannot read it
 
 ## Get the Android APK
 
@@ -104,6 +105,27 @@ Menu → **Import statement**, then pick a file.
 
 How rows are read: each transaction starts on a line with a date. Debit or credit is worked out from how the running balance changes (so it works whether the statement is oldest-first or newest-first), falling back to DR/CR or DEBIT/CREDIT labels. The payee is taken from the narration, e.g. `UPI-SWIGGY-SWIGGY.STORES@AXB-…` → `SWIGGY`.
 
+## Sync between devices
+
+Menu → **Sync** → *Sign in with Google*. The first device chooses a passphrase; every other device enters the same one. Sync runs when the app opens or resumes, a few seconds after any change, and on pull-to-refresh; a "Last synced" line sits under the summary card.
+
+- What is stored: an encrypted copy of every transaction (including the original SMS text and hidden rows) and your payee rules, in Drive's app-data folder, which only this app can see. `meta.json` there is plain and holds only the salt and a key check.
+- Encryption: PBKDF2-HMAC-SHA256 (200 000 rounds) turns the passphrase into an AES-256-GCM key on the device. The key, not the passphrase, is kept in the Android Keystore / iOS Keychain. Google never sees either.
+- Merging: payments are only ever added. For category changes and hiding, the most recent human change wins; an automatic import on another device never overwrites your correction.
+- Forgot the passphrase: *Reset sync* deletes the Drive files, you choose a new passphrase and this phone re-uploads everything. Other devices then ask for the new passphrase. Nothing on any phone is deleted.
+- *Sign out* forgets the key on this phone and keeps your data.
+
+### Owner setup (once, by whoever publishes the app)
+
+Google sign-in needs a Google Cloud project — no code, about ten minutes:
+
+1. [console.cloud.google.com](https://console.cloud.google.com) → New project (e.g. "UPI Track").
+2. APIs & Services → Library → enable **Google Drive API**.
+3. APIs & Services → OAuth consent screen → External → fill the app name and your email → Scopes → add `https://www.googleapis.com/auth/drive.appdata` only → Audience → Publish app (the `drive.appdata` scope is non-sensitive and needs no verification).
+4. APIs & Services → Credentials → Create credentials → OAuth client ID → **Android**: package name `com.piyush.upitrack`, SHA-1 of the release keystore (`keytool -list -v -keystore upload-keystore.jks`, or `openssl x509 -in cert.pem -noout -fingerprint -sha1` on the PEM saved next to it). The current release key's SHA-1 is `F8:4D:00:30:A5:A4:77:9B:47:46:FE:3C:60:A0:8B:F4:1F:DD:91:0F`. Add a second Android client with the debug SHA-1 if you run debug builds. Phase 2b adds a Web client for the GitHub Pages origin.
+
+Client IDs are not secrets; Android needs none in code.
+
 ## How it works
 
 ```
@@ -121,6 +143,7 @@ Manual entry ──────────────────────�
 | `lib/parser/statement_parser.dart` | Rows from statement text and CSV. Pure Dart. |
 | `lib/parser/categorizer.dart` | Keyword-based category guess. |
 | `lib/parser/merchant.dart` | Payee string → merchant name. One line per merchant. |
+| `lib/sync/` | Snapshot + merge rules (`snapshot.dart`, `merge.dart`), encryption (`crypto.dart`), the sync round (`sync_service.dart`), the Drive adapter (`drive_sync_store.dart`) and the controller the UI talks to (`sync_controller.dart`). |
 | `lib/data/repository.dart` | Sync, import and duplicate matching. |
 | `lib/data/db.dart` | SQLite tables: `txns`, `rules` (payee → category), `meta`. |
 | `lib/data/statement_reader.dart` | Opens PDFs (with password) and CSVs. |
@@ -160,6 +183,9 @@ The app is MIT-licensed. PDF reading uses [`syncfusion_flutter_pdf`](https://pub
 - Instant notifications depend on Android delivering the SMS broadcast; some phones (Xiaomi, Vivo, Oppo) block it under battery saving. Opening the app still catches up from the inbox.
 - Self transfers are detected by "same amount, same day, two different accounts of yours". A friend paying you back the exact amount you paid someone else, into a different account, on the same day, is mis-labelled — change its category to fix it.
 - Statement rows carry no account, so they appear under "All" only and are never paired as self transfers.
+- Sync needs the app to be opened: another device sees new payments only after the phone that received the SMS has run the app (no background upload).
+- Google sign-in on a sideloaded APK works only when the APK is signed with the keystore whose SHA-1 is registered in the Google Cloud project; a build signed with another key gets a sign-in error.
+- Clearing the app's data (or reinstalling without sync) loses local-only changes made since the last successful sync.
 
 ## Roadmap ideas
 
