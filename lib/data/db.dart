@@ -7,6 +7,8 @@ import '../models/account.dart';
 import '../models/txn.dart';
 import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
+import '../sync/merge.dart';
+import '../sync/snapshot.dart';
 
 /// Local SQLite storage. Nothing ever leaves the phone.
 class AppDb {
@@ -262,6 +264,66 @@ class AppDb {
 
   Future<void> deleteMeta(String k) =>
       _db.delete('meta', where: 'k = ?', whereArgs: [k]);
+
+  // -------------------------------------------------------------- sync
+
+  /// This device's whole table for upload (spec §4.4): every row including
+  /// hidden ones and `raw`, without local ids, plus every rule.
+  Future<Map<String, Object?>> snapshot() async {
+    final rows = await _db.query('txns', orderBy: 'ts');
+    return buildSnapshot(
+      deviceId: await deviceId(),
+      exportedMs: _now,
+      txns: [for (final r in rows) Map<String, Object?>.from(r)..remove('id')],
+      rules: await rulesRows(),
+    );
+  }
+
+  /// Merges another device's snapshot (spec §4.5) in one transaction:
+  /// unknown rows are inserted as they are, a row changes only when the
+  /// remote edit is newer, a newer rule is adopted and applied to rows it
+  /// outranks. Idempotent. Returns true (and flags dirty) when anything
+  /// changed, so this device's next upload carries what it learned.
+  Future<bool> applySnapshot(Map<String, Object?> snapshot) async {
+    var changed = false;
+    await _db.transaction((txn) async {
+      final local = {
+        for (final r in await txn.query('txns', columns: ['key', 'edit_ts']))
+          r['key'] as String: r
+      };
+      for (final raw in snapshot['txns'] as List) {
+        final t = Map<String, Object?>.from(raw as Map)..remove('id');
+        final action = mergeTxn(local[t['key']], t);
+        if (action == TxnMerge.insert) {
+          await txn.insert('txns', t, conflictAlgorithm: ConflictAlgorithm.ignore);
+          changed = true;
+        } else if (action == TxnMerge.update) {
+          await txn.update(
+            'txns',
+            {'category': t['category'], 'hidden': t['hidden'] ?? 0, 'edit_ts': t['edit_ts'] ?? 0},
+            where: 'key = ?',
+            whereArgs: [t['key']],
+          );
+          changed = true;
+        }
+      }
+
+      final localRules = {
+        for (final r in await txn.query('rules')) r['counterparty'] as String: r
+      };
+      for (final raw in snapshot['rules'] as List) {
+        final r = Map<String, Object?>.from(raw as Map);
+        if (!ruleWins(localRules[r['counterparty']], r)) continue;
+        await txn.insert('rules', r, conflictAlgorithm: ConflictAlgorithm.replace);
+        await txn.update('txns', {'category': r['category']},
+            where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ?',
+            whereArgs: [r['counterparty'], r['ts']]);
+        changed = true;
+      }
+      if (changed) await _markDirty(txn);
+    });
+    return changed;
+  }
 
   // ---------------------------------------------------------------- unparsed
 
