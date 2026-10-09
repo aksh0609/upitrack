@@ -12,12 +12,15 @@ import '../models/summary.dart';
 import '../models/txn.dart';
 import '../util/update_check.dart';
 import '../widgets/category_bars.dart';
+import '../widgets/merchant_bars.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/txn_day_list.dart';
 import 'add_txn_sheet.dart';
 import 'hidden_screen.dart';
 import 'import_flow.dart';
 import 'iphone_setup_screen.dart';
+import 'merchant_screen.dart';
+import 'merchants_screen.dart';
 import 'txn_sheet.dart';
 import 'unparsed_screen.dart';
 
@@ -211,6 +214,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _load();
   }
 
+  Future<void> _openMerchant(String merchant) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MerchantScreen(
+        repository: widget.repository,
+        merchant: merchant,
+        month: _month,
+      ),
+    ));
+    await _load();
+  }
+
+  Future<void> _openMerchants(MonthSummary summary) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MerchantsScreen(
+        repository: widget.repository,
+        month: _month,
+        totals: summary.byMerchant,
+      ),
+    ));
+    await _load();
+  }
+
   Future<void> _addManual() async {
     final added = await showAddTxnSheet(context, widget.repository);
     if (added == true) await _load();
@@ -317,6 +342,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Text('Where it went', style: text.titleMedium),
               const SizedBox(height: 8),
               CategoryBars(totals: summary.byCategory),
+            ],
+            if (summary.byMerchant.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(child: Text('Top merchants', style: text.titleMedium)),
+                  if (summary.byMerchant.length > 5)
+                    TextButton(
+                      onPressed: () => _openMerchants(summary),
+                      child: const Text('See all'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              MerchantBars(
+                totals: summary.byMerchant,
+                limit: 5,
+                onTap: _openMerchant,
+              ),
             ],
             const SizedBox(height: 24),
             Row(
