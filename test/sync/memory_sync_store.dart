@@ -8,6 +8,10 @@ class MemorySyncStore implements SyncStore {
   int downloads = 0;
   int uploads = 0;
 
+  /// Runs before each upload is stored; tests use it to simulate a local
+  /// write or a network failure mid-upload.
+  Future<void> Function()? onUpload;
+
   @override
   Future<List<RemoteFile>> list() async => [
         for (final e in files.entries)
@@ -22,6 +26,7 @@ class MemorySyncStore implements SyncStore {
 
   @override
   Future<void> upload(String name, Uint8List bytes) async {
+    if (onUpload != null) await onUpload!();
     uploads++;
     files[name] = bytes;
   }

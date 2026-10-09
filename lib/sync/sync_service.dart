@@ -45,11 +45,17 @@ class SyncService {
     var uploaded = false;
     final haveMine = files.any((f) => f.name == mine);
     if (!haveMine || await _db.getMeta('sync_dirty') == '1') {
-      // ponytail: a local change landing during this upload is carried by
-      // the next one; sync_dirty is cleared only after the upload succeeds.
-      final snap = encodeSnapshot(await _db.snapshot());
-      await _store.upload(mine, await SyncCrypto.encrypt(_key, snap));
+      // Clear the flag BEFORE reading the snapshot: a change that lands while
+      // we upload sets it again and goes out next round. Put it back if the
+      // upload fails, so nothing is ever stranded.
       await _db.setMeta('sync_dirty', '0');
+      try {
+        final snap = encodeSnapshot(await _db.snapshot());
+        await _store.upload(mine, await SyncCrypto.encrypt(_key, snap));
+      } catch (_) {
+        await _db.setMeta('sync_dirty', '1');
+        rethrow;
+      }
       uploaded = true;
     }
     return SyncResult(applied: applied, uploaded: uploaded);

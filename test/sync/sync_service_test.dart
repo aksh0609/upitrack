@@ -96,4 +96,27 @@ void main() {
     await setup.reset();
     expect(store.files, isEmpty);
   });
+
+  test('a change landing during the upload is carried by the next round', () async {
+    final sa = SyncService(a, store, key);
+    await a.insertAll([txn('k1')]);
+    store.onUpload = () async {
+      store.onUpload = null;
+      await a.insertAll([txn('k2')]); // lands while the first snapshot is in flight
+    };
+    await sa.sync();
+    expect(await a.getMeta('sync_dirty'), '1', reason: 'the mid-upload write re-dirtied the device');
+    expect((await sa.sync()).uploaded, isTrue);
+    expect(await a.getMeta('sync_dirty'), '0');
+  });
+
+  test('a failed upload leaves the device dirty', () async {
+    final sa = SyncService(a, store, key);
+    await a.insertAll([txn('k1')]);
+    store.onUpload = () async => throw StateError('offline');
+    await expectLater(sa.sync(), throwsA(isA<StateError>()));
+    expect(await a.getMeta('sync_dirty'), '1');
+    store.onUpload = null;
+    expect((await sa.sync()).uploaded, isTrue);
+  });
 }
