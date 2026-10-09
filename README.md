@@ -25,6 +25,10 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - **Instant notifications (Android):** "-₹250 to SWIGGY · Food" the moment the bank SMS arrives, even with the app closed
 - Hidden payments can be restored from menu → Hidden
 - Tells you when a new version is available (Android; the APK is installed by hand)
+- **Merchants:** payees are grouped into merchants (Swiggy, Amazon, Flipkart, Myntra, Zomato…). The home screen shows your top merchants for the month; tap one for the last six months and every payment to it
+- **Search** by payee or merchant
+- **Accounts:** every bank account seen in your SMS becomes a chip (HDFC •••1234, SBI •••5678) that filters the whole month, no setup needed
+- **Self transfers:** moving money between your own accounts is labelled "Self transfer" and left out of spent and received
 
 ## Get the Android APK
 
@@ -116,6 +120,7 @@ Manual entry ──────────────────────�
 | `lib/parser/sms_parser.dart` | Amount, direction, payee, bank, account and UPI ref from a bank SMS. Pure Dart. |
 | `lib/parser/statement_parser.dart` | Rows from statement text and CSV. Pure Dart. |
 | `lib/parser/categorizer.dart` | Keyword-based category guess. |
+| `lib/parser/merchant.dart` | Payee string → merchant name. One line per merchant. |
 | `lib/data/repository.dart` | Sync, import and duplicate matching. |
 | `lib/data/db.dart` | SQLite tables: `txns`, `rules` (payee → category), `meta`. |
 | `lib/data/statement_reader.dart` | Opens PDFs (with password) and CSVs. |
@@ -132,6 +137,8 @@ Each bank words its SMS and statements differently. If something is missing or w
 1. On the phone, open the "Not recognised" card and tap **Report** on the message — it shares an anonymised copy (names, account numbers, references and UPI IDs masked). Or copy the SMS and anonymise it by hand.
 2. Add a test in `test/sms_parser_test.dart` or `test/statement_parser_test.dart` with the values you expect.
 3. Run `flutter test`, adjust the parser until it passes, and check the other tests still pass.
+
+To add a merchant (so its payments are grouped and totalled), add one `('keyword', 'Name')` line to `merchantKeywords` in `lib/parser/merchant.dart`, longest keyword first, and a line to `test/parser/merchant_test.dart`.
 
 Pull requests with new formats are welcome. Never commit real, un-anonymised data.
 
@@ -151,6 +158,8 @@ The app is MIT-licensed. PDF reading uses [`syncfusion_flutter_pdf`](https://pub
 - Payments without a bank SMS (often UPI Lite) need manual entry or a statement import.
 - Unusual bank formats may need a test case and a parser tweak (see above).
 - Instant notifications depend on Android delivering the SMS broadcast; some phones (Xiaomi, Vivo, Oppo) block it under battery saving. Opening the app still catches up from the inbox.
+- Self transfers are detected by "same amount, same day, two different accounts of yours". A friend paying you back the exact amount you paid someone else, into a different account, on the same day, is mis-labelled — change its category to fix it.
+- Statement rows carry no account, so they appear under "All" only and are never paired as self transfers.
 
 ## Roadmap ideas
 
