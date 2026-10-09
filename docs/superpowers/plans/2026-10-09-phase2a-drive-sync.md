@@ -2536,6 +2536,16 @@ Claude-Session: https://claude.ai/code/session_01JRLLy55rhHqrkMzo7AVgEa"
 
 Expected suite: 115 tests.
 
+**Amendments after the task review (ruled by the controller; the code in the repo is authoritative where it differs from the blocks above):**
+
+1. `SyncController.setPassphrase` wraps its body in `try/catch` (sets `lastError`, notifies, returns false) and `_PassphraseState._submit` resets `_busy` in a `finally`, so a network failure during setup can't wedge the form.
+2. The home-screen status row also shows in `SyncState.needsPassphrase` when `lastError != null` ("Sync needs attention", warning icon opens Settings), so a reset on another device is visible.
+3. `SyncController.pulled` counts syncs that applied something; the home screen listens and calls `_load()` when it changes, so rows pulled from another device appear at once. A quiet sync leaves `pulled` unchanged, so there is no reload loop.
+4. Tests wait with a polling `waitFor(condition)` helper in `test/sync/fakes.dart` instead of fixed delays; the widget test runs its database work inside `tester.runAsync`.
+5. `_sync()` calls `syncController.syncNow()` after `_load()`, so pull-to-refresh, start and resume sync immediately rather than after the debounce.
+
+Expected suite after the amendments: 116 tests.
+
 ---
 
 ### Task 9: README (spec §5, §6)
