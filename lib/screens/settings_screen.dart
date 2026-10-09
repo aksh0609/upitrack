@@ -18,7 +18,8 @@ class SettingsScreen extends StatelessWidget {
         builder: (context, _) => ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('Sync with Google Drive', style: Theme.of(context).textTheme.titleMedium),
+            Text('Sync with Google Drive',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             switch (sync.state) {
               SyncState.signedOut => _SignedOut(sync: sync),
@@ -83,8 +84,12 @@ class _PassphraseState extends State<_Passphrase> {
 
   Future<void> _submit() async {
     final p = _one.text;
-    if (p.length < 8) return setState(() => _problem = 'Use at least 8 characters.');
-    if (_create && p != _two.text) return setState(() => _problem = 'The two entries differ.');
+    if (p.length < 8) {
+      return setState(() => _problem = 'Use at least 8 characters.');
+    }
+    if (_create && p != _two.text) {
+      return setState(() => _problem = 'The two entries differ.');
+    }
     setState(() {
       _busy = true;
       _problem = null;
@@ -117,7 +122,8 @@ class _PassphraseState extends State<_Passphrase> {
             controller: _one,
             obscureText: true,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'Passphrase', border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+                labelText: 'Passphrase', border: OutlineInputBorder()),
           ),
           if (_create) ...[
             const SizedBox(height: 8),
@@ -125,12 +131,14 @@ class _PassphraseState extends State<_Passphrase> {
               key: const Key('passphrase2'),
               controller: _two,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Repeat passphrase', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'Repeat passphrase', border: OutlineInputBorder()),
             ),
           ],
           if (_problem != null) ...[
             const SizedBox(height: 8),
-            Text(_problem!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            Text(_problem!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
           const SizedBox(height: 12),
           Row(
@@ -142,11 +150,14 @@ class _PassphraseState extends State<_Passphrase> {
               const SizedBox(width: 12),
               if (!_create)
                 TextButton(
-                  onPressed: _busy ? null : () => _confirmReset(context, widget.sync),
+                  onPressed:
+                      _busy ? null : () => _confirmReset(context, widget.sync),
                   child: const Text('Forgot it? Reset sync'),
                 ),
               const SizedBox(width: 12),
-              TextButton(onPressed: _busy ? null : widget.sync.signOut, child: const Text('Sign out')),
+              TextButton(
+                  onPressed: _busy ? null : widget.sync.signOut,
+                  child: const Text('Sign out')),
             ],
           ),
         ],
@@ -159,12 +170,17 @@ Future<void> _confirmReset(BuildContext context, SyncController sync) async {
     context: context,
     builder: (_) => AlertDialog(
       title: const Text('Reset sync?'),
-      content: const Text('Deletes the sync files in your Drive. Nothing on this '
+      content: const Text(
+          'Deletes the sync files in your Drive. Nothing on this '
           'phone is lost; you choose a new passphrase and everything is uploaded '
           'again. Other devices will ask for the new passphrase.'),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reset')),
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset')),
       ],
     ),
   );
@@ -195,7 +211,8 @@ class _Ready extends StatelessWidget {
               icon: const Icon(Icons.sync),
               label: const Text('Sync now'),
             ),
-            OutlinedButton(onPressed: sync.signOut, child: const Text('Sign out')),
+            OutlinedButton(
+                onPressed: sync.signOut, child: const Text('Sign out')),
             TextButton(
               onPressed: () => _confirmReset(context, sync),
               child: const Text('Reset sync'),

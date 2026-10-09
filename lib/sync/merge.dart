@@ -4,7 +4,8 @@ library;
 
 enum TxnMerge { insert, update, keep }
 
-int _stamp(Map<String, Object?> row, String field) => (row[field] as num?)?.toInt() ?? 0;
+int _stamp(Map<String, Object?> row, String field) =>
+    (row[field] as num?)?.toInt() ?? 0;
 
 /// What to do with [remote] given the [local] row with the same key (null
 /// when the device has never seen it). Payments are only ever added, so an

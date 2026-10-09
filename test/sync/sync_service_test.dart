@@ -14,8 +14,14 @@ import 'package:upitrack/sync/sync_setup.dart';
 import 'memory_sync_store.dart';
 
 Txn txn(String key) => Txn(
-      key: key, amountPaise: 25000, isDebit: true, counterparty: 'SWIGGY',
-      bank: 'HDFC Bank', account: '1234', channel: 'UPI', category: 'Food',
+      key: key,
+      amountPaise: 25000,
+      isDebit: true,
+      counterparty: 'SWIGGY',
+      bank: 'HDFC Bank',
+      account: '1234',
+      channel: 'UPI',
+      category: 'Food',
       time: DateTime(2026, 10, 3, 9),
     );
 
@@ -29,8 +35,10 @@ void main() {
 
   setUp(() async {
     dir = await Directory.systemTemp.createTemp('upitrack_svc');
-    a = await AppDb.open(factory: databaseFactoryFfi, path: p.join(dir.path, 'a.db'));
-    b = await AppDb.open(factory: databaseFactoryFfi, path: p.join(dir.path, 'b.db'));
+    a = await AppDb.open(
+        factory: databaseFactoryFfi, path: p.join(dir.path, 'a.db'));
+    b = await AppDb.open(
+        factory: databaseFactoryFfi, path: p.join(dir.path, 'b.db'));
     store = MemorySyncStore();
     key = await SyncSetup(store, iterations: 1000).create('p');
   });
@@ -40,16 +48,20 @@ void main() {
     await dir.delete(recursive: true);
   });
 
-  Future<List<Txn>> all(AppDb db) => db.betweenIncludingHidden(DateTime(2026, 10), DateTime(2026, 11));
+  Future<List<Txn>> all(AppDb db) =>
+      db.betweenIncludingHidden(DateTime(2026, 10), DateTime(2026, 11));
 
-  test('two devices converge; nothing is re-downloaded or re-uploaded when quiet', () async {
+  test(
+      'two devices converge; nothing is re-downloaded or re-uploaded when quiet',
+      () async {
     final sa = SyncService(a, store, key);
     final sb = SyncService(b, store, key);
     await a.insertAll([txn('k1')]);
 
     final r1 = await sa.sync();
     expect(r1.uploaded, isTrue);
-    expect(store.files.keys, [SyncSetup.metaName, SyncService.fileNameFor(await a.deviceId())]);
+    expect(store.files.keys,
+        [SyncSetup.metaName, SyncService.fileNameFor(await a.deviceId())]);
 
     final r2 = await sb.sync();
     expect(r2.applied, 1);
@@ -63,7 +75,8 @@ void main() {
     final before = (store.downloads, store.uploads);
     final r4 = await sa.sync();
     expect((r4.applied, r4.uploaded), (0, false));
-    expect((store.downloads, store.uploads), before, reason: 'seen versions skip the download');
+    expect((store.downloads, store.uploads), before,
+        reason: 'seen versions skip the download');
   });
 
   test('a hide on one device reaches the other', () async {
@@ -85,7 +98,8 @@ void main() {
     expect(() => wrong.sync(), throwsA(isA<SecretBoxAuthenticationError>()));
   });
 
-  test('a peer file encrypted with another key is skipped, not fatal', () async {
+  test('a peer file encrypted with another key is skipped, not fatal',
+      () async {
     await a.insertAll([txn('k1')]);
     await b.insertAll([txn('k2')]);
     final k1 = key;
@@ -106,8 +120,8 @@ void main() {
     await SyncService(a, store, k1).sync();
     store.files.clear();
     await SyncSetup(store, iterations: 1000).create('other');
-    await expectLater(
-        SyncService(a, store, k1).sync(), throwsA(isA<SecretBoxAuthenticationError>()));
+    await expectLater(SyncService(a, store, k1).sync(),
+        throwsA(isA<SecretBoxAuthenticationError>()));
   });
 
   test('no meta.json means no upload', () async {
@@ -117,7 +131,9 @@ void main() {
     expect(r.uploaded, isFalse);
   });
 
-  test('setup: create writes meta.json, join checks the passphrase, reset wipes', () async {
+  test(
+      'setup: create writes meta.json, join checks the passphrase, reset wipes',
+      () async {
     final store = MemorySyncStore(); // empty, unlike the fixture's
     final setup = SyncSetup(store, iterations: 1000);
     expect(await setup.readMeta(), isNull);
@@ -133,15 +149,18 @@ void main() {
     expect(store.files, isEmpty);
   });
 
-  test('a change landing during the upload is carried by the next round', () async {
+  test('a change landing during the upload is carried by the next round',
+      () async {
     final sa = SyncService(a, store, key);
     await a.insertAll([txn('k1')]);
     store.onUpload = () async {
       store.onUpload = null;
-      await a.insertAll([txn('k2')]); // lands while the first snapshot is in flight
+      await a.insertAll(
+          [txn('k2')]); // lands while the first snapshot is in flight
     };
     await sa.sync();
-    expect(await a.getMeta('sync_dirty'), '1', reason: 'the mid-upload write re-dirtied the device');
+    expect(await a.getMeta('sync_dirty'), '1',
+        reason: 'the mid-upload write re-dirtied the device');
     expect((await sa.sync()).uploaded, isTrue);
     expect(await a.getMeta('sync_dirty'), '0');
   });

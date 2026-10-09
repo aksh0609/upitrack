@@ -94,7 +94,8 @@ class SyncController extends ChangeNotifier {
   Future<void> _askPassphrase() async {
     final store = await _storeNow();
     if (store == null) return _set(SyncState.signedOut);
-    final meta = await _guard(() => SyncSetup(store, iterations: iterations).readMeta());
+    final meta =
+        await _guard(() => SyncSetup(store, iterations: iterations).readMeta());
     metaExists = meta != null;
     _set(SyncState.needsPassphrase);
   }
@@ -110,7 +111,9 @@ class SyncController extends ChangeNotifier {
     try {
       final setup = SyncSetup(store, iterations: iterations);
       final meta = await setup.readMeta();
-      final key = meta == null ? await setup.create(passphrase) : await setup.join(passphrase, meta);
+      final key = meta == null
+          ? await setup.create(passphrase)
+          : await setup.join(passphrase, meta);
       if (key == null) return false;
       await _keys.write(key);
       _key = key;
@@ -128,7 +131,9 @@ class SyncController extends ChangeNotifier {
 
   Future<void> syncNow() async {
     // Started offline with a key: retry the restore (resume calls this).
-    if (state == SyncState.signedOut && await _keys.read() != null) return start();
+    if (state == SyncState.signedOut && await _keys.read() != null) {
+      return start();
+    }
     if (state != SyncState.ready || syncing) return;
     syncing = true;
     notifyListeners();
@@ -139,7 +144,8 @@ class SyncController extends ChangeNotifier {
       if (result.applied > 0) pulled++;
       lastOk = DateTime.now();
       lastError = null;
-      await _db.setMeta('drive_last_ok_ms', lastOk!.millisecondsSinceEpoch.toString());
+      await _db.setMeta(
+          'drive_last_ok_ms', lastOk!.millisecondsSinceEpoch.toString());
     } on SecretBoxAuthenticationError {
       // Spec §4.6: sync was reset on another device; our key no longer fits.
       await _keys.clear();

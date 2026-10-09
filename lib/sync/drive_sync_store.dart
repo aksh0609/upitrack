@@ -30,8 +30,8 @@ class DriveSyncStore implements SyncStore {
 
   @override
   Future<Uint8List> download(String id) async {
-    final media = await _api.files.get(id, downloadOptions: drive.DownloadOptions.fullMedia)
-        as drive.Media;
+    final media = await _api.files.get(id,
+        downloadOptions: drive.DownloadOptions.fullMedia) as drive.Media;
     final bytes = BytesBuilder(copy: false);
     await for (final chunk in media.stream) {
       bytes.add(chunk);
@@ -51,7 +51,8 @@ class DriveSyncStore implements SyncStore {
         uploadMedia: media,
       );
     } else {
-      await _api.files.update(drive.File(), existing.first.id, uploadMedia: media);
+      await _api.files
+          .update(drive.File(), existing.first.id, uploadMedia: media);
     }
   }
 

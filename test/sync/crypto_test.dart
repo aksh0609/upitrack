@@ -25,13 +25,17 @@ void main() {
     final good = await key('correct horse', salt);
     final bad = await key('battery staple', salt);
     final data = await SyncCrypto.encrypt(good, utf8.encode('secret'));
-    expect(() => SyncCrypto.decrypt(bad, data), throwsA(isA<SecretBoxAuthenticationError>()));
+    expect(() => SyncCrypto.decrypt(bad, data),
+        throwsA(isA<SecretBoxAuthenticationError>()));
     data[15] ^= 0xff;
-    expect(() => SyncCrypto.decrypt(good, data), throwsA(isA<SecretBoxAuthenticationError>()));
+    expect(() => SyncCrypto.decrypt(good, data),
+        throwsA(isA<SecretBoxAuthenticationError>()));
     expect(() => SyncCrypto.decrypt(good, [1, 2, 3]), throwsFormatException);
   });
 
-  test('the same passphrase and salt give the same key; a different salt does not', () async {
+  test(
+      'the same passphrase and salt give the same key; a different salt does not',
+      () async {
     final salt = SyncCrypto.newSalt();
     expect(salt, hasLength(16));
     final a = await (await key('p', salt)).extractBytes();

@@ -15,7 +15,10 @@ class MemorySyncStore implements SyncStore {
   @override
   Future<List<RemoteFile>> list() async => [
         for (final e in files.entries)
-          RemoteFile(id: e.key, name: e.key, version: Object.hashAll(e.value).toRadixString(16)),
+          RemoteFile(
+              id: e.key,
+              name: e.key,
+              version: Object.hashAll(e.value).toRadixString(16)),
       ];
 
   @override

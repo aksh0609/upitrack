@@ -18,7 +18,8 @@ void main() {
   late AppDb b;
   late MemorySyncStore store;
 
-  SyncController controller(AppDb db, FakeAuth auth, MemorySyncKeys keys) => SyncController(
+  SyncController controller(AppDb db, FakeAuth auth, MemorySyncKeys keys) =>
+      SyncController(
         db,
         auth: auth,
         keys: keys,
@@ -29,8 +30,10 @@ void main() {
 
   setUp(() async {
     dir = await Directory.systemTemp.createTemp('upitrack_ctl');
-    a = await AppDb.open(factory: databaseFactoryFfi, path: p.join(dir.path, 'a.db'));
-    b = await AppDb.open(factory: databaseFactoryFfi, path: p.join(dir.path, 'b.db'));
+    a = await AppDb.open(
+        factory: databaseFactoryFfi, path: p.join(dir.path, 'a.db'));
+    b = await AppDb.open(
+        factory: databaseFactoryFfi, path: p.join(dir.path, 'b.db'));
     store = MemorySyncStore();
   });
   tearDown(() async {
@@ -39,7 +42,8 @@ void main() {
     await dir.delete(recursive: true);
   });
 
-  test('first device: sign in → create passphrase → ready and uploaded', () async {
+  test('first device: sign in → create passphrase → ready and uploaded',
+      () async {
     final c = controller(a, FakeAuth(), MemorySyncKeys());
     await c.start();
     expect(c.state, SyncState.signedOut);
@@ -53,14 +57,21 @@ void main() {
     expect(store.files.length, 2);
   });
 
-  test('second device: wrong passphrase refused, right one syncs the data', () async {
+  test('second device: wrong passphrase refused, right one syncs the data',
+      () async {
     final ca = controller(a, FakeAuth(), MemorySyncKeys());
     await ca.start();
     await ca.signIn();
     await ca.setPassphrase('correct horse');
     await a.insertAll([
-      Txn(key: 'k1', amountPaise: 1, isDebit: true, counterparty: 'SWIGGY', channel: 'UPI',
-          category: 'Food', time: DateTime(2026, 10, 3)),
+      Txn(
+          key: 'k1',
+          amountPaise: 1,
+          isDebit: true,
+          counterparty: 'SWIGGY',
+          channel: 'UPI',
+          category: 'Food',
+          time: DateTime(2026, 10, 3)),
     ]);
     await ca.syncNow();
 
@@ -71,10 +82,12 @@ void main() {
     expect(await cb.setPassphrase('battery staple'), isFalse);
     expect(cb.state, SyncState.needsPassphrase);
     expect(await cb.setPassphrase('correct horse'), isTrue);
-    expect((await b.between(DateTime(2026, 10), DateTime(2026, 11))).single.key, 'k1');
+    expect((await b.between(DateTime(2026, 10), DateTime(2026, 11))).single.key,
+        'k1');
   });
 
-  test('a stored key restores straight to ready; sign out forgets it', () async {
+  test('a stored key restores straight to ready; sign out forgets it',
+      () async {
     final auth = FakeAuth();
     final keys = MemorySyncKeys();
     final c1 = controller(a, auth, keys);
@@ -90,7 +103,8 @@ void main() {
     expect(keys.key, isNull);
   });
 
-  test('a cancelled sign-in stays signed out; poke debounces into one sync', () async {
+  test('a cancelled sign-in stays signed out; poke debounces into one sync',
+      () async {
     final auth = FakeAuth()..cancelNext = true;
     final c = controller(a, auth, MemorySyncKeys());
     await c.start();
@@ -129,8 +143,14 @@ void main() {
     await cb.signIn();
     await cb.setPassphrase('correct horse');
     await a.insertAll([
-      Txn(key: 'k1', amountPaise: 1, isDebit: true, counterparty: 'SWIGGY', channel: 'UPI',
-          category: 'Food', time: DateTime(2026, 10, 3)),
+      Txn(
+          key: 'k1',
+          amountPaise: 1,
+          isDebit: true,
+          counterparty: 'SWIGGY',
+          channel: 'UPI',
+          category: 'Food',
+          time: DateTime(2026, 10, 3)),
     ]);
     await ca.syncNow();
     expect(cb.pulled, 0);
@@ -140,7 +160,8 @@ void main() {
     expect(cb.pulled, 1);
   });
 
-  test('a key that no longer matches the folder asks for the passphrase again', () async {
+  test('a key that no longer matches the folder asks for the passphrase again',
+      () async {
     final keys = MemorySyncKeys();
     final ca = controller(a, FakeAuth(), keys);
     await ca.start();

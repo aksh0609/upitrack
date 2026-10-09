@@ -13,7 +13,8 @@ import 'sync_setup.dart';
 import 'sync_store.dart';
 
 class SyncResult {
-  const SyncResult({required this.applied, required this.uploaded, required this.skipped});
+  const SyncResult(
+      {required this.applied, required this.uploaded, required this.skipped});
 
   /// Remote snapshots that changed something here.
   final int applied;
@@ -43,12 +44,16 @@ class SyncService {
     // No meta.json: a reset is in progress on another device. Uploading now
     // with the old key would strand this device's file.
     final meta = files.where((f) => f.name == SyncSetup.metaName).firstOrNull;
-    if (meta == null) return const SyncResult(applied: 0, uploaded: false, skipped: 0);
+    if (meta == null) {
+      return const SyncResult(applied: 0, uploaded: false, skipped: 0);
+    }
     const seenMeta = 'seen:${SyncSetup.metaName}';
     if (meta.version == null || meta.version != await _db.getMeta(seenMeta)) {
-      final m = jsonDecode(utf8.decode(await _store.download(meta.id))) as Map<String, Object?>;
+      final m = jsonDecode(utf8.decode(await _store.download(meta.id)))
+          as Map<String, Object?>;
       if (!await SyncCrypto.verifyCheck(_key, m['check'] as String)) {
-        throw SecretBoxAuthenticationError(message: 'The sync key no longer matches meta.json');
+        throw SecretBoxAuthenticationError(
+            message: 'The sync key no longer matches meta.json');
       }
       if (meta.version != null) await _db.setMeta(seenMeta, meta.version!);
     }
@@ -58,9 +63,12 @@ class SyncService {
     for (final f in files) {
       if (!f.name.startsWith('dev-') || f.name == mine) continue;
       final seenKey = 'seen:${f.name}';
-      if (f.version != null && f.version == await _db.getMeta(seenKey)) continue;
+      if (f.version != null && f.version == await _db.getMeta(seenKey)) {
+        continue;
+      }
       try {
-        final bytes = await SyncCrypto.decrypt(_key, await _store.download(f.id));
+        final bytes =
+            await SyncCrypto.decrypt(_key, await _store.download(f.id));
         if (await _db.applySnapshot(decodeSnapshot(bytes))) applied++;
       } catch (_) {
         // Unreadable (stale key, partial upload): not seen, retried next

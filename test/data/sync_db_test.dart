@@ -11,7 +11,9 @@ import 'package:upitrack/models/txn.dart';
 Future<AppDb> openDevice(Directory dir, String name) =>
     AppDb.open(factory: databaseFactoryFfi, path: p.join(dir.path, '$name.db'));
 
-Txn txn(String key, {String category = 'Food', int editTs = 0, bool hidden = false}) => Txn(
+Txn txn(String key,
+        {String category = 'Food', int editTs = 0, bool hidden = false}) =>
+    Txn(
       key: key,
       amountPaise: 25000,
       isDebit: true,
@@ -43,9 +45,11 @@ void main() {
     await dir.delete(recursive: true);
   });
 
-  Future<List<Txn>> all(AppDb db) => db.betweenIncludingHidden(DateTime(2026, 10), DateTime(2026, 11));
+  Future<List<Txn>> all(AppDb db) =>
+      db.betweenIncludingHidden(DateTime(2026, 10), DateTime(2026, 11));
 
-  test('snapshot has every row without ids, plus rules and the device id', () async {
+  test('snapshot has every row without ids, plus rules and the device id',
+      () async {
     await a.insertAll([txn('k1'), txn('k2', hidden: true)]);
     await a.setCategoryForPayee('SWIGGY', 'Groceries');
     final snap = await a.snapshot();
@@ -70,12 +74,14 @@ void main() {
     expect(await b.getMeta('sync_dirty'), '1');
   });
 
-  test('a newer edit wins; an automatic row never overwrites an edit', () async {
+  test('a newer edit wins; an automatic row never overwrites an edit',
+      () async {
     await a.insertAll([txn('k1')]);
     await b.insertAll([txn('k1')]);
     final local = (await all(b)).single;
     await b.setCategory(local.id!, 'Travel'); // b edits (edit_ts = now)
-    expect(await b.applySnapshot(await a.snapshot()), isFalse, reason: "a's row is automatic");
+    expect(await b.applySnapshot(await a.snapshot()), isFalse,
+        reason: "a's row is automatic");
     expect((await all(b)).single.category, 'Travel');
 
     expect(await a.applySnapshot(await b.snapshot()), isTrue);
@@ -90,24 +96,30 @@ void main() {
     await a.hide((await all(a)).single.id!);
     expect(await b.applySnapshot(await a.snapshot()), isTrue);
     expect((await all(b)).single.hidden, isTrue);
-    expect(await b.applySnapshot(await a.snapshot()), isFalse, reason: 'second apply changes nothing');
+    expect(await b.applySnapshot(await a.snapshot()), isFalse,
+        reason: 'second apply changes nothing');
   });
 
-  test('a rule applies to automatic rows but not to a later direct edit', () async {
+  test('a rule applies to automatic rows but not to a later direct edit',
+      () async {
     await b.insertAll([txn('k1'), txn('k2')]);
     final rows = await all(b);
-    await b.setCategory(rows.firstWhere((t) => t.key == 'k2').id!, 'Travel'); // now
+    await b.setCategory(
+        rows.firstWhere((t) => t.key == 'k2').id!, 'Travel'); // now
     await Future<void>.delayed(const Duration(milliseconds: 2));
     await a.insertAll([txn('k1')]);
-    await a.setCategoryForPayee('SWIGGY', 'Groceries'); // rule ts later than b's edit
+    await a.setCategoryForPayee(
+        'SWIGGY', 'Groceries'); // rule ts later than b's edit
     await b.applySnapshot(await a.snapshot());
     final byKey = {for (final t in await all(b)) t.key: t.category};
     expect(byKey['k1'], 'Groceries');
-    expect(byKey['k2'], 'Groceries', reason: 'rule is newer than the edit, so it wins — same as locally');
+    expect(byKey['k2'], 'Groceries',
+        reason: 'rule is newer than the edit, so it wins — same as locally');
 
     // And the other way round: an edit newer than the rule stays.
     await Future<void>.delayed(const Duration(milliseconds: 2));
-    await b.setCategory((await all(b)).firstWhere((t) => t.key == 'k2').id!, 'Travel');
+    await b.setCategory(
+        (await all(b)).firstWhere((t) => t.key == 'k2').id!, 'Travel');
     await b.applySnapshot(await a.snapshot());
     expect((await all(b)).firstWhere((t) => t.key == 'k2').category, 'Travel');
   });
@@ -119,7 +131,9 @@ void main() {
     expect((await all(b)).single.category, 'Groceries');
   });
 
-  test('a remote edit older than the local rule yields to the rule; a newer one wins', () async {
+  test(
+      'a remote edit older than the local rule yields to the rule; a newer one wins',
+      () async {
     await a.insertAll([txn('x')]);
     await a.setCategory((await all(a)).single.id!, 'Travel'); // T1
     await Future<void>.delayed(const Duration(milliseconds: 2));

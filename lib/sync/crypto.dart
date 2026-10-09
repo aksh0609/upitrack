@@ -26,14 +26,17 @@ class SyncCrypto {
   /// PBKDF2-HMAC-SHA256 → 32-byte key. Tests pass a small [iterations].
   static Future<SecretKey> deriveKey(String passphrase, List<int> salt,
       {int iterations = SyncCrypto.iterations}) {
-    final kdf = Pbkdf2(macAlgorithm: Hmac.sha256(), iterations: iterations, bits: 256);
-    return kdf.deriveKey(secretKey: SecretKey(utf8.encode(passphrase)), nonce: salt);
+    final kdf =
+        Pbkdf2(macAlgorithm: Hmac.sha256(), iterations: iterations, bits: 256);
+    return kdf.deriveKey(
+        secretKey: SecretKey(utf8.encode(passphrase)), nonce: salt);
   }
 
   /// `nonce(12) ‖ ciphertext ‖ tag(16)`. A fresh random nonce every call.
   static Future<Uint8List> encrypt(SecretKey key, List<int> plain) async {
     final box = await _aes.encrypt(plain, secretKey: key);
-    return Uint8List.fromList([...box.nonce, ...box.cipherText, ...box.mac.bytes]);
+    return Uint8List.fromList(
+        [...box.nonce, ...box.cipherText, ...box.mac.bytes]);
   }
 
   /// Throws [SecretBoxAuthenticationError] for a wrong key or tampered data.

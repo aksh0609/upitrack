@@ -34,10 +34,12 @@ class GoogleAuth implements SyncAuth {
   Future<void> _init() async {
     if (_initialized) return;
     if (kGoogleServerClientId == null) {
-      throw StateError('Google sign-in is not configured: set kGoogleServerClientId in '
+      throw StateError(
+          'Google sign-in is not configured: set kGoogleServerClientId in '
           'lib/sync/oauth_ids.dart (README → Owner setup).');
     }
-    await GoogleSignIn.instance.initialize(serverClientId: kGoogleServerClientId);
+    await GoogleSignIn.instance
+        .initialize(serverClientId: kGoogleServerClientId);
     _initialized = true;
   }
 
@@ -45,7 +47,8 @@ class GoogleAuth implements SyncAuth {
   Future<http.Client?> signIn() async {
     await _init();
     try {
-      final account = await GoogleSignIn.instance.authenticate(scopeHint: _scopes);
+      final account =
+          await GoogleSignIn.instance.authenticate(scopeHint: _scopes);
       final auth = await account.authorizationClient.authorizeScopes(_scopes);
       _account = account;
       return auth.authClient(scopes: _scopes);
@@ -58,7 +61,8 @@ class GoogleAuth implements SyncAuth {
   @override
   Future<http.Client?> restore() async {
     await _init();
-    final account = await GoogleSignIn.instance.attemptLightweightAuthentication();
+    final account =
+        await GoogleSignIn.instance.attemptLightweightAuthentication();
     if (account == null) return null;
     _account = account;
     return client();
@@ -70,7 +74,8 @@ class GoogleAuth implements SyncAuth {
   Future<http.Client?> client() async {
     final account = _account;
     if (account == null) return null;
-    final auth = await account.authorizationClient.authorizationForScopes(_scopes);
+    final auth =
+        await account.authorizationClient.authorizationForScopes(_scopes);
     return auth?.authClient(scopes: _scopes);
   }
 

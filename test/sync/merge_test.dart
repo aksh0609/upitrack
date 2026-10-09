@@ -26,7 +26,8 @@ void main() {
   });
 
   test('a rule wins when unknown locally or newer', () {
-    Map<String, Object?> rule(int ts) => {'counterparty': 'SWIGGY', 'category': 'Food', 'ts': ts};
+    Map<String, Object?> rule(int ts) =>
+        {'counterparty': 'SWIGGY', 'category': 'Food', 'ts': ts};
     expect(ruleWins(null, rule(1)), isTrue);
     expect(ruleWins(rule(1), rule(2)), isTrue);
     expect(ruleWins(rule(2), rule(2)), isFalse);

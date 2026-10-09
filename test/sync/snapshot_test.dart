@@ -7,10 +7,22 @@ void main() {
       deviceId: 'abc',
       exportedMs: 1760000000000,
       txns: [
-        {'key': 'k1', 'amount_paise': 100, 'is_debit': 1, 'counterparty': 'SWIGGY',
-         'channel': 'UPI', 'category': 'Food', 'ts': 1, 'hidden': 0, 'edit_ts': 0, 'raw': null},
+        {
+          'key': 'k1',
+          'amount_paise': 100,
+          'is_debit': 1,
+          'counterparty': 'SWIGGY',
+          'channel': 'UPI',
+          'category': 'Food',
+          'ts': 1,
+          'hidden': 0,
+          'edit_ts': 0,
+          'raw': null
+        },
       ],
-      rules: [{'counterparty': 'SWIGGY', 'category': 'Food', 'ts': 7}],
+      rules: [
+        {'counterparty': 'SWIGGY', 'category': 'Food', 'ts': 7}
+      ],
     );
     expect(snap['v'], kSnapshotVersion);
     expect(snap['device'], 'abc');
@@ -20,7 +32,8 @@ void main() {
   });
 
   test('an unknown version is refused', () {
-    final bytes = encodeSnapshot({'v': 99, 'device': 'x', 'exported_ms': 0, 'txns': [], 'rules': []});
+    final bytes = encodeSnapshot(
+        {'v': 99, 'device': 'x', 'exported_ms': 0, 'txns': [], 'rules': []});
     expect(() => decodeSnapshot(bytes), throwsFormatException);
   });
 

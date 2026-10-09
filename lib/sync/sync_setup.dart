@@ -27,7 +27,8 @@ class SyncSetup {
     final files = await _store.list();
     for (final f in files) {
       if (f.name == metaName) {
-        return jsonDecode(utf8.decode(await _store.download(f.id))) as Map<String, Object?>;
+        return jsonDecode(utf8.decode(await _store.download(f.id)))
+            as Map<String, Object?>;
       }
     }
     return null;
@@ -36,7 +37,8 @@ class SyncSetup {
   /// First device: choose a passphrase, write meta.json, return the key.
   Future<SecretKey> create(String passphrase) async {
     final salt = SyncCrypto.newSalt();
-    final key = await SyncCrypto.deriveKey(passphrase, salt, iterations: iterations);
+    final key =
+        await SyncCrypto.deriveKey(passphrase, salt, iterations: iterations);
     final meta = {
       'v': 1,
       'kdf': 'pbkdf2-sha256',
@@ -44,7 +46,8 @@ class SyncSetup {
       'salt': base64Encode(salt),
       'check': await SyncCrypto.makeCheck(key),
     };
-    await _store.upload(metaName, Uint8List.fromList(utf8.encode(jsonEncode(meta))));
+    await _store.upload(
+        metaName, Uint8List.fromList(utf8.encode(jsonEncode(meta))));
     return key;
   }
 
@@ -56,7 +59,9 @@ class SyncSetup {
       base64Decode(meta['salt'] as String),
       iterations: (meta['iterations'] as num).toInt(),
     );
-    return await SyncCrypto.verifyCheck(key, meta['check'] as String) ? key : null;
+    return await SyncCrypto.verifyCheck(key, meta['check'] as String)
+        ? key
+        : null;
   }
 
   /// Forgotten passphrase: wipe the folder. Local data is untouched; the
