@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,7 +27,11 @@ import 'txn_sheet.dart';
 import 'unparsed_screen.dart';
 
 /// Android: SMS permission state. iPhone: SMS come in via Shortcuts instead.
-enum _Access { checking, granted, denied, permanentlyDenied, iphone }
+/// Web: no SMS at all; data comes from sync and statement import.
+enum _Access { checking, granted, denied, permanentlyDenied, iphone, web }
+
+/// iPhone, not the web app. `Platform.isIOS` is unavailable on the web.
+bool get _isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.repository, this.updateChecker, this.syncController});
@@ -112,7 +114,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _checkAccess() async {
-    if (Platform.isIOS) {
+    if (kIsWeb) {
+      if (mounted) setState(() => _access = _Access.web);
+      await _sync();
+      return;
+    }
+    if (_isIOS) {
       if (mounted) setState(() => _access = _Access.iphone);
       await _sync();
       return;
@@ -156,8 +163,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       } on PlatformException catch (e) {
         _snack('Could not read SMS: ${e.message ?? e.code}');
-      } on FileSystemException catch (e) {
-        _snack('Could not read shortcut messages: ${e.message}');
+      } catch (e) {
+        _snack('Could not read messages: $e');
       } finally {
         if (mounted) setState(() => _syncing = false);
       }
@@ -333,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             )
           else
             IconButton(
-              tooltip: 'Check for new SMS',
+              tooltip: kIsWeb ? 'Sync now' : 'Check for new SMS',
               icon: const Icon(Icons.refresh),
               onPressed: _sync,
             ),
@@ -408,6 +415,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             if (_access == _Access.iphone && _shortcutCount == 0)
               _IphoneCard(onSetup: _openIphoneSetup, onImport: _importStatement),
+            if (_access == _Access.web &&
+                widget.syncController != null &&
+                widget.syncController!.state != SyncState.ready)
+              _WebSyncCard(onSetup: _openSettings),
             if (_unparsedCount > 0)
               _UnparsedCard(count: _unparsedCount, onTap: _openUnparsed),
             _MonthSwitcher(
@@ -618,6 +629,51 @@ class _PermissionCard extends StatelessWidget {
   }
 }
 
+class _WebSyncCard extends StatelessWidget {
+  const _WebSyncCard({required this.onSetup});
+
+  final VoidCallback onSetup;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.cloud_sync_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Sync with Google Drive', style: text.titleMedium),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'A browser can\'t read SMS. Sign in with the Google account you '
+              'use on your phone to see the same payments here; the first '
+              'time, enter your sync passphrase. Statements can be imported '
+              'from the menu.',
+              style: text.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: onSetup,
+              icon: const Icon(Icons.login),
+              label: const Text('Set up sync'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _IphoneCard extends StatelessWidget {
   const _IphoneCard({required this.onSetup, required this.onImport});
 
@@ -684,9 +740,11 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             waitingForAccess
-                ? (Platform.isIOS
-                    ? 'Set up auto-tracking or import a statement, or tap Add.'
-                    : 'Allow SMS access, import a statement, or tap Add.')
+                ? (kIsWeb
+                    ? 'Sync with Google Drive to see your payments here, import a statement, or tap Add.'
+                    : _isIOS
+                        ? 'Set up auto-tracking or import a statement, or tap Add.'
+                        : 'Allow SMS access, import a statement, or tap Add.')
                 : 'No transactions this month.',
             textAlign: TextAlign.center,
           ),

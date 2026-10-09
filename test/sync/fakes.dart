@@ -5,8 +5,11 @@ import 'package:upitrack/sync/google_auth.dart';
 import 'package:upitrack/sync/sync_keys.dart';
 
 /// Signs in instantly; `restore` succeeds only after a sign-in.
+/// [authorized] false mimics the web after the hour-long token expired: the
+/// account is known but Drive calls need a new "Allow Drive access" tap.
 class FakeAuth implements SyncAuth {
   bool signedIn = false;
+  bool authorized = true;
   bool cancelNext = false;
 
   @override
@@ -16,14 +19,19 @@ class FakeAuth implements SyncAuth {
       return null;
     }
     signedIn = true;
+    authorized = true;
     return http.Client();
   }
 
   @override
-  Future<http.Client?> restore() async => signedIn ? http.Client() : null;
+  Future<http.Client?> restore() async => client();
 
   @override
-  Future<http.Client?> client() async => signedIn ? http.Client() : null;
+  Future<http.Client?> client() async =>
+      signedIn && authorized ? http.Client() : null;
+
+  @override
+  bool get hasAccount => signedIn;
 
   @override
   Future<void> signOut() async => signedIn = false;

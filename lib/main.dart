@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 import 'background/sms_background.dart';
 import 'data/db.dart';
@@ -17,14 +20,19 @@ import 'util/update_check.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Browser: SQLite compiled to WebAssembly, persisted in IndexedDB (spec §4.8).
+  if (kIsWeb) databaseFactory = databaseFactoryFfiWeb;
   final db = await AppDb.open();
   final info = await PackageInfo.fromPlatform();
+  final auth = GoogleAuth();
   final sync = SyncController(
     db,
-    auth: GoogleAuth(),
+    auth: auth,
     keys: SecureSyncKeys(),
     storeFor: DriveSyncStore.new,
   );
+  // Web: Google's button signs in outside our code; re-check when it does.
+  auth.onAccountChanged = () => unawaited(sync.start());
   runApp(UpiTrackApp(
     repository: TxnRepository(db, SmsSource(), ShortcutInbox()),
     updateChecker: UpdateChecker(db, currentVersion: info.version),

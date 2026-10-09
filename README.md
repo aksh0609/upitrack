@@ -30,6 +30,7 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - **Accounts:** every bank account seen in your SMS becomes a chip (HDFC •••1234, SBI •••5678) that filters the whole month, no setup needed
 - **Self transfers:** moving money between your own accounts is labelled "Self transfer" and left out of spent and received
 - **Sync (optional):** sign in with Google and choose a passphrase; your payments, categories and hidden rows are encrypted on the phone and kept in a hidden folder of your own Google Drive, so a second phone shows the same data. Google cannot read it
+- **Web app:** [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/) shows the same synced data in a browser and imports statements; nothing to install
 
 ## Get the Android APK
 
@@ -55,6 +56,15 @@ Android only installs an update over an existing app when both are signed with t
    - `KEY_ALIAS`: `upload`
 3. Back up the `.jks` file and the passwords. Losing them means everyone must uninstall before the next update, and the Google sign-in for the planned Drive sync is tied to this key's SHA-1 (`keytool -list -v -keystore upload-keystore.jks`).
 
+## Use it in a browser
+
+Open [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/). A browser can't read SMS, so the web app shows what your phone has synced and imports statements:
+
+1. Set up sync on the phone first (menu → **Sync**).
+2. In the browser: menu → **Sync** → press Google's *Sign in* button → **Allow Drive access** → enter the same passphrase.
+
+Google keeps the browser's Drive access only until the page is reloaded, and at most for an hour; after that the Sync screen shows Google's *Sign in* button and *Allow Drive access* again. The passphrase is remembered. The local copy lives in the browser profile (IndexedDB); clearing site data removes it and the next sync restores it. Every push to `main` deploys the site; a PR's build is attached to its CI run as the **upitrack-web** artifact.
+
 ## Build locally
 
 You need [Flutter](https://docs.flutter.dev/get-started/install) (stable).
@@ -71,6 +81,8 @@ flutter test
 ```
 
 **Android:** `flutter run` with a phone connected (USB debugging on).
+
+**Web:** `flutter run -d chrome --web-port 8080` (the port is part of the OAuth origin registered in step 4 below).
 
 **iPhone** (needs a Mac with Xcode):
 
@@ -117,12 +129,13 @@ Menu → **Sync** → *Sign in with Google*. The first device chooses a passphra
 
 ### Owner setup (once, by whoever publishes the app)
 
-Google sign-in needs a Google Cloud project — about ten minutes, plus one constant to paste in step 4:
+Google sign-in needs a Google Cloud project — about ten minutes, plus one constant to paste in step 4 and one repository setting in step 5:
 
 1. [console.cloud.google.com](https://console.cloud.google.com) → New project (e.g. "UPI Track").
 2. APIs & Services → Library → enable **Google Drive API**.
 3. APIs & Services → OAuth consent screen → External → fill the app name and your email → Scopes → add `https://www.googleapis.com/auth/drive.appdata` only → Audience → Publish app (the `drive.appdata` scope is non-sensitive and needs no verification).
-4. APIs & Services → Credentials → Create credentials → OAuth client ID → **Android**: package name `com.piyush.upitrack`, SHA-1 of the release keystore (`keytool -list -v -keystore upload-keystore.jks`, or `openssl x509 -in cert.pem -noout -fingerprint -sha1` on the PEM saved next to it). The current release key's SHA-1 is `F8:4D:00:30:A5:A4:77:9B:47:46:FE:3C:60:A0:8B:F4:1F:DD:91:0F`. Add a second Android client with the debug SHA-1 if you run debug builds. Also create a **Web application** client (no origins needed yet); paste its client id into `kGoogleServerClientId` in `lib/sync/oauth_ids.dart` — google_sign_in on Android requires it as the "server client id". Phase 2b adds a Web client for the GitHub Pages origin.
+4. APIs & Services → Credentials → Create credentials → OAuth client ID → **Android**: package name `com.piyush.upitrack`, SHA-1 of the release keystore (`keytool -list -v -keystore upload-keystore.jks`, or `openssl x509 -in cert.pem -noout -fingerprint -sha1` on the PEM saved next to it). The current release key's SHA-1 is `F8:4D:00:30:A5:A4:77:9B:47:46:FE:3C:60:A0:8B:F4:1F:DD:91:0F`. Add a second Android client with the debug SHA-1 if you run debug builds. Also create a **Web application** client (see the origins below); paste its client id into `kGoogleServerClientId` in `lib/sync/oauth_ids.dart` — google_sign_in on Android requires it as the "server client id". Give the Web client three *Authorised JavaScript origins*: `https://aksh0609.github.io`, `http://localhost` and `http://localhost:8080` (Google requires the port-less form as well for local development).
+5. GitHub → repository **Settings → Pages → Source: GitHub Actions** (or `gh api -X POST repos/<you>/<repo>/pages -f build_type=workflow`). The **Test and build** workflow then deploys `build/web` on every push to `main`. If you fork the repo, the base href `/upitrack/` in `.github/workflows/build.yml` and the origin in step 4 change with your names.
 
 Client ids are not secrets; the Web client id is committed in code.
 
@@ -187,6 +200,8 @@ The app is MIT-licensed. PDF reading uses [`syncfusion_flutter_pdf`](https://pub
 - Google sign-in on a sideloaded APK works only when the APK is signed with the keystore whose SHA-1 is registered in the Google Cloud project; a build signed with another key gets a sign-in error.
 - Clearing the app's data (or reinstalling without sync) loses local-only changes made since the last successful sync.
 - Self transfers are paired on the phone that received both bank SMS. A debit seen on one phone and the matching credit seen on another are not paired after sync.
+- Web: Google's Drive access lasts until the page is reloaded, at most an hour (Google does not refresh browser tokens); the Sync screen then asks for Google's *Sign in* button and *Allow Drive access* again. The passphrase is remembered and nothing is lost in between.
+- Web: the local copy is per browser profile and is gone when site data is cleared; sync restores it.
 
 ## Roadmap ideas
 
