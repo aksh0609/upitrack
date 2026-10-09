@@ -417,4 +417,156 @@ void main() {
       expect(await r2.pairSelfTransfers(DateTime(2026, 10), DateTime(2026, 11)), 0);
     });
   });
+
+  group('schema v3', () {
+    test('a version-2 database gains edit_ts and rules.ts; hand-set categories are stamped', () async {
+      final dir = await Directory.systemTemp.createTemp('upitrack_v2');
+      final path = p.join(dir.path, 'upitrack.db');
+      final v2 = await databaseFactoryFfi.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 2,
+          onCreate: (db, _) async {
+            await db.execute('''
+              CREATE TABLE txns(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                sms_id INTEGER,
+                amount_paise INTEGER NOT NULL,
+                is_debit INTEGER NOT NULL,
+                counterparty TEXT NOT NULL,
+                bank TEXT,
+                account TEXT,
+                ref TEXT,
+                channel TEXT NOT NULL,
+                category TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                raw TEXT,
+                manual INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT 'sms',
+                hidden INTEGER NOT NULL DEFAULT 0
+              )''');
+            await db.execute(
+                'CREATE TABLE rules(counterparty TEXT PRIMARY KEY, category TEXT NOT NULL)');
+            await db.execute('CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
+            await db.execute('''
+              CREATE TABLE unparsed(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                sender TEXT NOT NULL,
+                body TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                state TEXT NOT NULL DEFAULT 'open'
+              )''');
+          },
+        ),
+      );
+      final ts = DateTime(2026, 10, 3).millisecondsSinceEpoch;
+      Map<String, Object?> row(String key, String cp, bool debit, String cat) => {
+            'key': key, 'amount_paise': 1000, 'is_debit': debit ? 1 : 0,
+            'counterparty': cp, 'channel': 'UPI', 'category': cat, 'ts': ts,
+          };
+      await v2.insert('txns', row('a', 'SWIGGY', true, 'Food')); // the automatic guess
+      await v2.insert('txns', row('b', 'SWIGGY', true, 'Groceries')); // hand-set
+      await v2.insert('txns', row('c', 'me@oksbi', true, 'Self transfer')); // paired
+      final d = await v2.insert('txns', row('d', 'HDFC', false, 'Income')); // un-paired by hand
+      await v2.insert('rules', {'counterparty': 'ZOMATO', 'category': 'Groceries'});
+      await v2.insert('meta', {'k': 'unpaired_ids', 'v': '$d'});
+      await v2.close();
+
+      final db = await AppDb.open(factory: databaseFactoryFfi, path: path);
+      final byKey = {for (final t in await db.between(DateTime(2026, 10), DateTime(2026, 11))) t.key: t};
+      expect(byKey['a']!.editTs, 0);
+      expect(byKey['b']!.editTs, greaterThan(0));
+      expect(byKey['c']!.editTs, 0);
+      expect(byKey['d']!.editTs, greaterThan(0));
+      expect((await db.rulesRows()).single['ts'], greaterThan(0));
+      expect(await db.getMeta('unpaired_ids'), isNull);
+      expect(await db.getMeta('sync_dirty'), '1');
+      await db.close();
+      await dir.delete(recursive: true);
+    });
+
+    test('Txn round-trips hidden and edit_ts', () {
+      final t = Txn(
+        key: 'k', amountPaise: 1, isDebit: true, counterparty: 'x', channel: 'UPI',
+        category: 'Food', time: DateTime(2026, 10, 3), hidden: true, editTs: 42,
+      );
+      final back = Txn.fromMap(t.toMap());
+      expect(back.hidden, isTrue);
+      expect(back.editTs, 42);
+      expect(Txn.fromMap({...t.toMap()}..remove('edit_ts')..remove('hidden')).editTs, 0);
+    });
+  });
+
+  group('edit stamping and dirty flag', () {
+    TxnRepository repo(List<RawSms> sms) => TxnRepository(db, FakeSms(sms), FakeInbox());
+    Future<Txn> only(TxnRepository r) async =>
+        (await r.between(DateTime(2026, 10), DateTime(2026, 11))).single;
+
+    test('a new sync sets sync_dirty; a category change stamps edit_ts', () async {
+      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]);
+      expect(await db.getMeta('sync_dirty'), isNull);
+      await r.syncSms();
+      expect(await db.getMeta('sync_dirty'), '1');
+      expect((await only(r)).editTs, 0);
+
+      await db.setMeta('sync_dirty', '0');
+      await r.setCategory(await only(r), 'Groceries', forPayee: false);
+      expect((await only(r)).editTs, greaterThan(0));
+      expect(await db.getMeta('sync_dirty'), '1');
+    });
+
+    test('a payee rule stamps rules.ts and leaves edit_ts alone', () async {
+      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]);
+      await r.syncSms();
+      await r.setCategory(await only(r), 'Groceries', forPayee: true);
+      final t = await only(r);
+      expect(t.category, 'Groceries');
+      expect(t.editTs, 0);
+      expect((await db.rulesRows()).single['ts'], greaterThan(0));
+    });
+
+    test('hide and unhide stamp edit_ts and set sync_dirty', () async {
+      final r = repo([RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcSwiggy, date: DateTime(2026, 10, 3, 9))]);
+      await r.syncSms();
+      await db.setMeta('sync_dirty', '0');
+      await r.hide(await only(r));
+      final hidden = (await r.hidden()).single;
+      expect(hidden.hidden, isTrue);
+      expect(hidden.editTs, greaterThan(0));
+      expect(await db.getMeta('sync_dirty'), '1');
+      await r.unhide(hidden);
+      expect((await only(r)).hidden, isFalse);
+    });
+
+    test('manual entries carry the device id and an edit stamp', () async {
+      final r = repo(const []);
+      final id = await db.deviceId();
+      expect(id, hasLength(32));
+      expect(await db.deviceId(), id, reason: 'generated once');
+      await r.addManual(amountPaise: 100, isDebit: true, counterparty: 'Cash',
+          category: 'Food', time: DateTime(2026, 10, 1));
+      final t = await only(r);
+      expect(t.key, startsWith('manual:$id:'));
+      expect(t.editTs, greaterThan(0));
+    });
+
+    test('pairing never touches an edited row and stamps nothing itself', () async {
+      const hdfcOut = 'Sent Rs.5,000.00\nFrom HDFC Bank A/C *1234\nTo me@oksbi\n'
+          'On 03/10/26\nRef 427600000201';
+      const sbiIn = 'Dear SBI UPI User, ur A/cX5678 credited by Rs5000 on 03Oct26 by '
+          '(Ref no 427600000202)';
+      final day = DateTime(2026, 10, 3, 9);
+      final r = repo([
+        RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day),
+        RawSms(id: 2, address: 'AD-SBIUPI', body: sbiIn, date: day),
+      ]);
+      await r.syncSms();
+      final paired = await r.between(DateTime(2026, 10), DateTime(2026, 11));
+      expect(paired.map((t) => t.category), everyElement(Categorizer.selfTransfer));
+      expect(paired.map((t) => t.editTs), everyElement(0), reason: 'pairing is automatic');
+      expect(await db.getMeta('unpaired_ids'), isNull);
+    });
+  });
 }

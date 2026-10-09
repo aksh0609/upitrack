@@ -11,6 +11,7 @@ import '../data/repository.dart';
 import '../models/account.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
+import '../sync/sync_controller.dart';
 import '../util/search.dart';
 import '../util/update_check.dart';
 import '../widgets/category_bars.dart';
@@ -23,6 +24,7 @@ import 'import_flow.dart';
 import 'iphone_setup_screen.dart';
 import 'merchant_screen.dart';
 import 'merchants_screen.dart';
+import 'settings_screen.dart';
 import 'txn_sheet.dart';
 import 'unparsed_screen.dart';
 
@@ -30,10 +32,11 @@ import 'unparsed_screen.dart';
 enum _Access { checking, granted, denied, permanentlyDenied, iphone }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.repository, this.updateChecker});
+  const HomeScreen({super.key, required this.repository, this.updateChecker, this.syncController});
 
   final TxnRepository repository;
   final UpdateChecker? updateChecker;
+  final SyncController? syncController;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -62,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.syncController?.addListener(_onSyncChanged);
     _search.addListener(() => setState(() {}));
     _checkAccess();
     _checkUpdate();
@@ -85,7 +89,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _search.dispose();
+    widget.syncController?.removeListener(_onSyncChanged);
     super.dispose();
+  }
+
+  int _seenPulls = 0;
+
+  void _onSyncChanged() {
+    final c = widget.syncController;
+    if (c != null && c.pulled != _seenPulls) {
+      _seenPulls = c.pulled;
+      _load();
+    }
   }
 
   /// Picks up new SMS (and a permission granted in Settings) when the user
@@ -93,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _checkAccess();
+    if (state == AppLifecycleState.resumed) widget.syncController?.syncNow();
   }
 
   Future<void> _checkAccess() async {
@@ -151,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
     await _load();
+    await widget.syncController?.syncNow();
   }
 
   Future<void> _load() async {
@@ -167,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (accounts.length < 2 || !accounts.contains(_account)) _account = null;
       });
     }
+    widget.syncController?.poke();
   }
 
   void _snack(String message, {SnackBarAction? action}) {
@@ -222,6 +240,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _openUnparsed() async {
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => UnparsedScreen(repository: widget.repository),
+    ));
+    await _load();
+  }
+
+  Future<void> _openSettings() async {
+    final sync = widget.syncController;
+    if (sync == null) return;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => SettingsScreen(sync: sync),
     ));
     await _load();
   }
@@ -315,6 +342,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (v == 'import') _importStatement();
               if (v == 'iphone') _openIphoneSetup();
               if (v == 'hidden') _openHidden();
+              if (v == 'settings') _openSettings();
             },
             itemBuilder: (_) => [
               const PopupMenuItem(
@@ -333,6 +361,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
+              if (widget.syncController != null)
+                const PopupMenuItem(
+                  value: 'settings',
+                  child: ListTile(
+                    leading: Icon(Icons.cloud_sync_outlined),
+                    title: Text('Sync'),
+                  ),
+                ),
               if (_access == _Access.iphone)
                 const PopupMenuItem(
                   value: 'iphone',
@@ -403,6 +439,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             const SizedBox(height: 8),
             SummaryCard(summary: summary, showToday: _isCurrentMonth),
+            if (widget.syncController != null)
+              ListenableBuilder(
+                listenable: widget.syncController!,
+                builder: (context, _) {
+                  final s = widget.syncController!;
+                  final attention = s.state == SyncState.needsPassphrase && s.lastError != null;
+                  if (s.state != SyncState.ready && !attention) return const SizedBox.shrink();
+                  final text = attention
+                      ? 'Sync needs attention'
+                      : s.syncing
+                      ? 'Syncing…'
+                      : s.lastOk == null
+                          ? 'Not synced yet'
+                          : 'Last synced ${DateFormat('d MMM, HH:mm').format(s.lastOk!)}';
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      children: [
+                        Icon(s.lastError == null && !attention ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+                            size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        const SizedBox(width: 6),
+                        Text(text,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                        if (s.lastError != null)
+                          IconButton(
+                            iconSize: 16,
+                            tooltip: s.lastError,
+                            icon: const Icon(Icons.info_outline),
+                            onPressed: _openSettings,
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             if (summary.byCategory.isNotEmpty) ...[
               const SizedBox(height: 24),
               Text('Where it went', style: text.titleMedium),
