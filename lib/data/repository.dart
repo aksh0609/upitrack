@@ -251,12 +251,14 @@ class TxnRepository {
   Future<int> pairSelfTransfers(DateTime from, DateTime to) async {
     final rules = await _db.rules();
     final txns = await _db.between(from, to); // newest first
+    final unpaired = await _unpairedIds();
     bool automatic(Txn t) =>
         t.category ==
         Categorizer.categorizeWith(rules, t.counterparty, isDebit: t.isDebit);
     final candidates = txns
         .where((t) =>
             t.account != null &&
+            !unpaired.contains(t.id) &&
             t.category != Categorizer.selfTransfer &&
             automatic(t))
         .toList();
@@ -279,9 +281,16 @@ class TxnRepository {
     return pairs;
   }
 
+  /// Ids the user manually took out of a pair; they are never re-paired.
+  // ponytail: unpaired_ids grows by one per manual un-pair; Phase 2's edit_ts replaces it.
+  Future<Set<int>> _unpairedIds() async {
+    final raw = await _db.getMeta('unpaired_ids') ?? '';
+    return raw.split(',').where((s) => s.isNotEmpty).map(int.parse).toSet();
+  }
+
   /// Runs [pairSelfTransfers] over the days around rows a sync or import
-  /// just added (one day either side, since the two SMS can straddle
-  /// midnight).
+  /// just added. The one-day margin widens the scan to the whole calendar
+  /// day on either side of the added rows' timestamps.
   Future<void> _pairAround(List<Txn> added) async {
     if (added.isEmpty) return;
     var first = added.first.time;
@@ -303,6 +312,12 @@ class TxnRepository {
 
   Future<void> setCategory(Txn t, String category,
       {required bool forPayee}) async {
+    if (t.category == Categorizer.selfTransfer &&
+        category != Categorizer.selfTransfer) {
+      final ids = await _unpairedIds()
+        ..add(t.id!);
+      await _db.setMeta('unpaired_ids', ids.join(','));
+    }
     // Spec §3.3: Self transfer is never a payee rule.
     if (forPayee && category != Categorizer.selfTransfer) {
       await _db.setCategoryForPayee(t.counterparty, category);

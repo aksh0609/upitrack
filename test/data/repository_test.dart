@@ -391,5 +391,30 @@ void main() {
           (await db.rules()).keys.map((k) => k.toLowerCase()), isNot(contains('me@oksbi')));
       expect((await october(r)).single.category, Categorizer.selfTransfer);
     });
+
+    test('a manually un-paired self transfer stays un-paired', () async {
+      final sms = [
+        RawSms(id: 1, address: 'VM-HDFCBK', body: hdfcOut, date: day),
+        RawSms(id: 2, address: 'AD-SBIUPI', body: sbiIn, date: day),
+      ];
+      final r = repo(sms);
+      await r.syncSms();
+      final txns = await october(r);
+      await r.setCategory(txns.firstWhere((t) => t.isDebit), 'Transfers', forPayee: false);
+      await r.setCategory(txns.firstWhere((t) => !t.isDebit), 'Income', forPayee: false);
+
+      const hdfcChai = 'Sent Rs.50.00\nFrom HDFC Bank A/C *1234\nTo CHAI POINT\n'
+          'On 03/10/26\nRef 427600000055';
+      final r2 = repo([
+        ...sms,
+        RawSms(id: 3, address: 'VM-HDFCBK', body: hdfcChai, date: day),
+      ]);
+      await r2.syncSms();
+      final after = await october(r2);
+      expect(after.firstWhere((t) => t.isDebit && t.amountPaise == 500000).category,
+          'Transfers');
+      expect(after.firstWhere((t) => !t.isDebit).category, 'Income');
+      expect(await r2.pairSelfTransfers(DateTime(2026, 10), DateTime(2026, 11)), 0);
+    });
   });
 }
