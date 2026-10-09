@@ -2,19 +2,26 @@
 /// seen, merge it, then push ours if anything changed locally.
 library;
 
+import 'dart:convert';
+
 import 'package:cryptography/cryptography.dart';
 
 import '../data/db.dart';
 import 'crypto.dart';
 import 'snapshot.dart';
+import 'sync_setup.dart';
 import 'sync_store.dart';
 
 class SyncResult {
-  const SyncResult({required this.applied, required this.uploaded});
+  const SyncResult({required this.applied, required this.uploaded, required this.skipped});
 
   /// Remote snapshots that changed something here.
   final int applied;
   final bool uploaded;
+
+  /// Peer files that couldn't be read (e.g. still encrypted with the key
+  /// from before a reset); retried next round.
+  final int skipped;
 }
 
 class SyncService {
@@ -27,18 +34,40 @@ class SyncService {
   static String fileNameFor(String deviceId) => 'dev-$deviceId.json.enc';
 
   /// Throws on network or auth failure, and [SecretBoxAuthenticationError]
-  /// when the stored key no longer matches the folder (sync was reset).
+  /// when the stored key fails the check in meta.json (sync was reset,
+  /// spec §4.6).
   Future<SyncResult> sync() async {
     final mine = fileNameFor(await _db.deviceId());
     final files = await _store.list();
 
+    // No meta.json: a reset is in progress on another device. Uploading now
+    // with the old key would strand this device's file.
+    final meta = files.where((f) => f.name == SyncSetup.metaName).firstOrNull;
+    if (meta == null) return const SyncResult(applied: 0, uploaded: false, skipped: 0);
+    const seenMeta = 'seen:${SyncSetup.metaName}';
+    if (meta.version == null || meta.version != await _db.getMeta(seenMeta)) {
+      final m = jsonDecode(utf8.decode(await _store.download(meta.id))) as Map<String, Object?>;
+      if (!await SyncCrypto.verifyCheck(_key, m['check'] as String)) {
+        throw SecretBoxAuthenticationError(message: 'The sync key no longer matches meta.json');
+      }
+      if (meta.version != null) await _db.setMeta(seenMeta, meta.version!);
+    }
+
     var applied = 0;
+    var skipped = 0;
     for (final f in files) {
       if (!f.name.startsWith('dev-') || f.name == mine) continue;
       final seenKey = 'seen:${f.name}';
       if (f.version != null && f.version == await _db.getMeta(seenKey)) continue;
-      final bytes = await SyncCrypto.decrypt(_key, await _store.download(f.id));
-      if (await _db.applySnapshot(decodeSnapshot(bytes))) applied++;
+      try {
+        final bytes = await SyncCrypto.decrypt(_key, await _store.download(f.id));
+        if (await _db.applySnapshot(decodeSnapshot(bytes))) applied++;
+      } catch (_) {
+        // Unreadable (stale key, partial upload): not seen, retried next
+        // round, and never blocks our own upload.
+        skipped++;
+        continue;
+      }
       if (f.version != null) await _db.setMeta(seenKey, f.version!);
     }
 
@@ -58,6 +87,6 @@ class SyncService {
       }
       uploaded = true;
     }
-    return SyncResult(applied: applied, uploaded: uploaded);
+    return SyncResult(applied: applied, uploaded: uploaded, skipped: skipped);
   }
 }

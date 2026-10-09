@@ -102,7 +102,9 @@ class AppDb {
     if (unpaired.isNotEmpty) {
       for (final s in (unpaired.first['v'] as String).split(',')) {
         if (s.isEmpty) continue;
-        batch.update('txns', {'edit_ts': now}, where: 'id = ?', whereArgs: [int.parse(s)]);
+        final id = int.tryParse(s);
+        if (id == null) continue;
+        batch.update('txns', {'edit_ts': now}, where: 'id = ?', whereArgs: [id]);
       }
       batch.delete('meta', where: "k = 'unpaired_ids'");
     }
@@ -282,7 +284,8 @@ class AppDb {
   /// Merges another device's snapshot (spec §4.5) in one transaction:
   /// unknown rows are inserted as they are, a row changes only when the
   /// remote edit is newer, a newer rule is adopted and applied to rows it
-  /// outranks. Idempotent. Returns true (and flags dirty) when anything
+  /// outranks, then every local rule is re-applied to rows it outranks.
+  /// Idempotent. Returns true (and flags dirty) when anything
   /// changed, so this device's next upload carries what it learned.
   Future<bool> applySnapshot(Map<String, Object?> snapshot) async {
     var changed = false;
@@ -319,6 +322,13 @@ class AppDb {
             where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ?',
             whereArgs: [r['counterparty'], r['ts']]);
         changed = true;
+      }
+      // A row that arrived after a local rule was set still follows it.
+      for (final r in await txn.query('rules')) {
+        final n = await txn.update('txns', {'category': r['category']},
+            where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ? AND category != ? AND category != ?',
+            whereArgs: [r['counterparty'], r['ts'], r['category'], Categorizer.selfTransfer]);
+        if (n > 0) changed = true;
       }
       if (changed) await _markDirty(txn);
     });

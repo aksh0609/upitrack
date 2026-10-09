@@ -249,6 +249,8 @@ apply(snap):   -- one SQLite transaction
   if anything changed: meta.sync_dirty = '1'   -- so my snapshot carries it on
 ```
 
+After merging, every local rule is re-applied to rows whose edit_ts is older than the rule and whose category differs, so a row that arrives after the rule was set still follows it (added in Phase 2a review).
+
 `apply` is idempotent and order-independent. The rule update leaves
 per-transaction `edit_ts` untouched, so a later direct edit of one payment
 still wins over the payee rule, matching how the app behaves locally.

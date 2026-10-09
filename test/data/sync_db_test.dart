@@ -111,4 +111,25 @@ void main() {
     await b.applySnapshot(await a.snapshot());
     expect((await all(b)).firstWhere((t) => t.key == 'k2').category, 'Travel');
   });
+
+  test('a local rule applies to a row that arrives later', () async {
+    await b.setCategoryForPayee('SWIGGY', 'Groceries'); // no rows on b yet
+    await a.insertAll([txn('z')]); // automatic Food on a
+    await b.applySnapshot(await a.snapshot());
+    expect((await all(b)).single.category, 'Groceries');
+  });
+
+  test('a remote edit older than the local rule yields to the rule; a newer one wins', () async {
+    await a.insertAll([txn('x')]);
+    await a.setCategory((await all(a)).single.id!, 'Travel'); // T1
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await b.setCategoryForPayee('SWIGGY', 'Groceries'); // T2 > T1
+    await b.applySnapshot(await a.snapshot());
+    expect((await all(b)).single.category, 'Groceries');
+
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await a.setCategory((await all(a)).single.id!, 'Shopping'); // T3 > T2
+    await b.applySnapshot(await a.snapshot());
+    expect((await all(b)).single.category, 'Shopping');
+  });
 }

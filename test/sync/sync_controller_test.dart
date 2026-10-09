@@ -6,6 +6,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:upitrack/data/db.dart';
 import 'package:upitrack/models/txn.dart';
 import 'package:upitrack/sync/sync_controller.dart';
+import 'package:upitrack/sync/sync_setup.dart';
 
 import 'fakes.dart';
 import 'memory_sync_store.dart';
@@ -137,5 +138,20 @@ void main() {
     expect(cb.pulled, 1);
     await cb.syncNow();
     expect(cb.pulled, 1);
+  });
+
+  test('a key that no longer matches the folder asks for the passphrase again', () async {
+    final keys = MemorySyncKeys();
+    final ca = controller(a, FakeAuth(), keys);
+    await ca.start();
+    await ca.signIn();
+    await ca.setPassphrase('p');
+    expect(ca.state, SyncState.ready);
+    store.files.clear();
+    await SyncSetup(store, iterations: 1000).create('other');
+    await ca.syncNow();
+    expect(ca.state, SyncState.needsPassphrase);
+    expect(ca.lastError, isNotNull);
+    expect(keys.key, isNull);
   });
 }

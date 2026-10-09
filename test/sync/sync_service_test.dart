@@ -6,6 +6,8 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:upitrack/data/db.dart';
 import 'package:upitrack/models/txn.dart';
+import 'package:upitrack/sync/crypto.dart';
+import 'package:upitrack/sync/snapshot.dart';
 import 'package:upitrack/sync/sync_service.dart';
 import 'package:upitrack/sync/sync_setup.dart';
 
@@ -23,13 +25,14 @@ void main() {
   late AppDb a;
   late AppDb b;
   late MemorySyncStore store;
-  final key = SecretKey(List<int>.filled(32, 7));
+  late SecretKey key;
 
   setUp(() async {
     dir = await Directory.systemTemp.createTemp('upitrack_svc');
     a = await AppDb.open(factory: databaseFactoryFfi, path: p.join(dir.path, 'a.db'));
     b = await AppDb.open(factory: databaseFactoryFfi, path: p.join(dir.path, 'b.db'));
     store = MemorySyncStore();
+    key = await SyncSetup(store, iterations: 1000).create('p');
   });
   tearDown(() async {
     await a.close();
@@ -46,7 +49,7 @@ void main() {
 
     final r1 = await sa.sync();
     expect(r1.uploaded, isTrue);
-    expect(store.files.keys, [SyncService.fileNameFor(await a.deviceId())]);
+    expect(store.files.keys, [SyncSetup.metaName, SyncService.fileNameFor(await a.deviceId())]);
 
     final r2 = await sb.sync();
     expect(r2.applied, 1);
@@ -82,7 +85,40 @@ void main() {
     expect(() => wrong.sync(), throwsA(isA<SecretBoxAuthenticationError>()));
   });
 
+  test('a peer file encrypted with another key is skipped, not fatal', () async {
+    await a.insertAll([txn('k1')]);
+    await b.insertAll([txn('k2')]);
+    final k1 = key;
+    await SyncService(a, store, k1).sync();
+    // Reset elsewhere: new meta.json and key; b's file from before the reset lingers.
+    store.files.clear();
+    final k2 = await SyncSetup(store, iterations: 1000).create('new');
+    store.files['dev-stale.json.enc'] =
+        await SyncCrypto.encrypt(k1, encodeSnapshot(await b.snapshot()));
+    final r = await SyncService(a, store, k2).sync();
+    expect(r.skipped, 1);
+    expect(r.uploaded, isTrue);
+  });
+
+  test('a changed meta check asks for the passphrase', () async {
+    final k1 = key;
+    await a.insertAll([txn('k1')]);
+    await SyncService(a, store, k1).sync();
+    store.files.clear();
+    await SyncSetup(store, iterations: 1000).create('other');
+    await expectLater(
+        SyncService(a, store, k1).sync(), throwsA(isA<SecretBoxAuthenticationError>()));
+  });
+
+  test('no meta.json means no upload', () async {
+    await a.insertAll([txn('k1')]);
+    store.files.clear();
+    final r = await SyncService(a, store, key).sync();
+    expect(r.uploaded, isFalse);
+  });
+
   test('setup: create writes meta.json, join checks the passphrase, reset wipes', () async {
+    final store = MemorySyncStore(); // empty, unlike the fixture's
     final setup = SyncSetup(store, iterations: 1000);
     expect(await setup.readMeta(), isNull);
     final created = await setup.create('correct horse');
