@@ -65,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.syncController?.addListener(_onSyncChanged);
     _search.addListener(() => setState(() {}));
     _checkAccess();
     _checkUpdate();
@@ -88,7 +89,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _search.dispose();
+    widget.syncController?.removeListener(_onSyncChanged);
     super.dispose();
+  }
+
+  int _seenPulls = 0;
+
+  void _onSyncChanged() {
+    final c = widget.syncController;
+    if (c != null && c.pulled != _seenPulls) {
+      _seenPulls = c.pulled;
+      _load();
+    }
   }
 
   /// Picks up new SMS (and a permission granted in Settings) when the user
@@ -155,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
     await _load();
+    await widget.syncController?.syncNow();
   }
 
   Future<void> _load() async {
@@ -431,8 +444,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 listenable: widget.syncController!,
                 builder: (context, _) {
                   final s = widget.syncController!;
-                  if (s.state != SyncState.ready) return const SizedBox.shrink();
-                  final text = s.syncing
+                  final attention = s.state == SyncState.needsPassphrase && s.lastError != null;
+                  if (s.state != SyncState.ready && !attention) return const SizedBox.shrink();
+                  final text = attention
+                      ? 'Sync needs attention'
+                      : s.syncing
                       ? 'Syncing…'
                       : s.lastOk == null
                           ? 'Not synced yet'
@@ -441,7 +457,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     padding: const EdgeInsets.only(top: 6),
                     child: Row(
                       children: [
-                        Icon(s.lastError == null ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+                        Icon(s.lastError == null && !attention ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
                             size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         const SizedBox(width: 6),
                         Text(text,

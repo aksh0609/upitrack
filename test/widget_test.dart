@@ -83,7 +83,7 @@ void main() {
     expect(find.text('Sign in with Google'), findsOneWidget);
     await tester.runAsync(() async {
       await tester.tap(find.text('Sign in with Google'));
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await waitFor(() => sync.state == SyncState.needsPassphrase);
     });
     await tester.pumpAndSettle();
     expect(find.text('Turn on sync'), findsOneWidget);
@@ -92,8 +92,9 @@ void main() {
     await tester.enterText(find.byKey(const Key('passphrase2')), 'correct horse');
     await tester.runAsync(() async {
       await tester.tap(find.text('Turn on sync'));
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await waitFor(() => !sync.syncing && sync.lastOk != null);
     });
+    await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text('Sync now'), findsOneWidget);
     expect(find.textContaining('Last synced'), findsOneWidget);

@@ -54,6 +54,9 @@ class SyncController extends ChangeNotifier {
   /// asks to enter, not create). Valid in [SyncState.needsPassphrase].
   bool metaExists = false;
 
+  /// Counts syncs that pulled something new, so the home screen knows to reload.
+  int pulled = 0;
+
   SyncStore? _store;
   SecretKey? _key;
   Timer? _debounce;
@@ -92,17 +95,23 @@ class SyncController extends ChangeNotifier {
   /// Creates the folder's meta.json (first device) or checks the passphrase
   /// against it. False means it didn't match; the state is unchanged.
   Future<bool> setPassphrase(String passphrase) async {
-    final setup = SyncSetup(_store!, iterations: iterations);
-    final meta = await setup.readMeta();
-    final key = meta == null ? await setup.create(passphrase) : await setup.join(passphrase, meta);
-    if (key == null) return false;
-    await _keys.write(key);
-    _key = key;
-    // Everything local must reach the folder once, whatever sync_dirty says.
-    await _db.setMeta('sync_dirty', '1');
-    _set(SyncState.ready);
-    await syncNow();
-    return true;
+    try {
+      final setup = SyncSetup(_store!, iterations: iterations);
+      final meta = await setup.readMeta();
+      final key = meta == null ? await setup.create(passphrase) : await setup.join(passphrase, meta);
+      if (key == null) return false;
+      await _keys.write(key);
+      _key = key;
+      // Everything local must reach the folder once, whatever sync_dirty says.
+      await _db.setMeta('sync_dirty', '1');
+      _set(SyncState.ready);
+      await syncNow();
+      return true;
+    } catch (e) {
+      lastError = '$e';
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<void> syncNow() async {
@@ -110,7 +119,8 @@ class SyncController extends ChangeNotifier {
     syncing = true;
     notifyListeners();
     try {
-      await SyncService(_db, _store!, _key!).sync();
+      final result = await SyncService(_db, _store!, _key!).sync();
+      if (result.applied > 0) pulled++;
       lastOk = DateTime.now();
       lastError = null;
       await _db.setMeta('drive_last_ok_ms', lastOk!.millisecondsSinceEpoch.toString());

@@ -89,12 +89,18 @@ class _PassphraseState extends State<_Passphrase> {
       _busy = true;
       _problem = null;
     });
-    final ok = await widget.sync.setPassphrase(p);
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      if (!ok) _problem = "That passphrase doesn't match the one used on your other device.";
-    });
+    try {
+      final ok = await widget.sync.setPassphrase(p);
+      if (!mounted) return;
+      setState(() {
+        if (!ok) {
+          _problem = widget.sync.lastError ??
+              "That passphrase doesn't match the one used on your other device.";
+        }
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override

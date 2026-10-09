@@ -103,7 +103,7 @@ void main() {
     c.poke();
     c.poke();
     c.poke();
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await waitFor(() => store.uploads == uploads + 1);
     expect(store.uploads, uploads + 1);
   });
 
@@ -116,5 +116,26 @@ void main() {
     expect(store.files, isEmpty);
     expect(c.state, SyncState.needsPassphrase);
     expect(c.metaExists, isFalse);
+  });
+
+  test('pulled counts only syncs that applied something', () async {
+    final ca = controller(a, FakeAuth(), MemorySyncKeys());
+    await ca.start();
+    await ca.signIn();
+    await ca.setPassphrase('correct horse');
+    final cb = controller(b, FakeAuth(), MemorySyncKeys());
+    await cb.start();
+    await cb.signIn();
+    await cb.setPassphrase('correct horse');
+    await a.insertAll([
+      Txn(key: 'k1', amountPaise: 1, isDebit: true, counterparty: 'SWIGGY', channel: 'UPI',
+          category: 'Food', time: DateTime(2026, 10, 3)),
+    ]);
+    await ca.syncNow();
+    expect(cb.pulled, 0);
+    await cb.syncNow();
+    expect(cb.pulled, 1);
+    await cb.syncNow();
+    expect(cb.pulled, 1);
   });
 }

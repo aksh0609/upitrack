@@ -1,4 +1,5 @@
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:upitrack/sync/google_auth.dart';
 import 'package:upitrack/sync/sync_keys.dart';
@@ -36,4 +37,14 @@ class MemorySyncKeys implements SyncKeys {
 
   @override
   Future<void> clear() async => key = null;
+}
+
+/// Polls [condition] every 10 ms until true or [timeout]; fails the test on timeout.
+Future<void> waitFor(bool Function() condition,
+    {Duration timeout = const Duration(seconds: 5)}) async {
+  final end = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(end)) fail('waitFor timed out');
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
 }
