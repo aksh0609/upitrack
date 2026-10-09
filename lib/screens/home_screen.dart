@@ -10,11 +10,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/repository.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
-import '../util/format.dart';
 import '../util/update_check.dart';
 import '../widgets/category_bars.dart';
 import '../widgets/summary_card.dart';
-import '../widgets/txn_tile.dart';
+import '../widgets/txn_day_list.dart';
 import 'add_txn_sheet.dart';
 import 'hidden_screen.dart';
 import 'import_flow.dart';
@@ -336,30 +335,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   waitingForAccess: _access != _Access.granted &&
                       !(_access == _Access.iphone && _shortcutCount > 0))
             else
-              ..._groupedByDay(visible, text),
+              ...txnsGroupedByDay(context, visible,
+                  onTap: _openTxn, onHide: _hideTxn),
           ],
         ),
       ),
     );
-  }
-
-  List<Widget> _groupedByDay(List<Txn> txns, TextTheme text) {
-    final widgets = <Widget>[];
-    DateTime? currentDay;
-    for (final t in txns) {
-      final day = DateTime(t.time.year, t.time.month, t.time.day);
-      if (day != currentDay) {
-        currentDay = day;
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(top: 12, bottom: 2),
-          child: Text(dayLabel(day),
-              style: text.labelLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        ));
-      }
-      widgets.add(TxnTile(txn: t, onTap: () => _openTxn(t), onHide: () => _hideTxn(t)));
-    }
-    return widgets;
   }
 }
 
