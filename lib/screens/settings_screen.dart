@@ -61,7 +61,9 @@ class _SignedOut extends StatelessWidget {
             FilledButton.icon(
               onPressed: sync.signIn,
               icon: const Icon(Icons.login),
-              label: Text(kIsWeb ? 'Allow Drive access' : 'Sign in with Google'),
+              label: Text(kIsWeb && sync.hasAccount
+                  ? 'Allow Drive access'
+                  : 'Sign in with Google'),
             ),
         ],
       );

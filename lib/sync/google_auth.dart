@@ -41,14 +41,23 @@ class GoogleAuth implements SyncAuth {
   /// our code; the controller re-checks sign-in when this fires.
   VoidCallback? onAccountChanged;
 
-  bool _initialized = false;
+  Future<void>? _initializing;
   GoogleSignInAccount? _account;
 
   @override
   bool get hasAccount => _account != null;
 
+  /// Runs the plugin's initialize() once, however many callers overlap.
   Future<void> _init() async {
-    if (_initialized) return;
+    try {
+      await (_initializing ??= _doInit());
+    } catch (_) {
+      _initializing = null;
+      rethrow;
+    }
+  }
+
+  Future<void> _doInit() async {
     final id = kGoogleServerClientId;
     if (id == null) {
       throw StateError(
@@ -69,7 +78,6 @@ class GoogleAuth implements SyncAuth {
     } else {
       await GoogleSignIn.instance.initialize(serverClientId: id);
     }
-    _initialized = true;
   }
 
   @override

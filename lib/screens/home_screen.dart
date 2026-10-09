@@ -164,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } on PlatformException catch (e) {
         _snack('Could not read SMS: ${e.message ?? e.code}');
       } catch (e) {
-        _snack('Could not read shortcut messages: $e');
+        _snack('Could not read messages: $e');
       } finally {
         if (mounted) setState(() => _syncing = false);
       }
@@ -656,8 +656,9 @@ class _WebSyncCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'A browser can\'t read SMS. Sign in with the Google account you '
-              'use on your phone and enter your sync passphrase to see the '
-              'same payments here. Statements can be imported from the menu.',
+              'use on your phone to see the same payments here; the first '
+              'time, enter your sync passphrase. Statements can be imported '
+              'from the menu.',
               style: text.bodyMedium,
             ),
             const SizedBox(height: 12),
