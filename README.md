@@ -63,7 +63,7 @@ Open [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/). A brow
 1. Set up sync on the phone first (menu → **Sync**).
 2. In the browser: menu → **Sync** → press Google's *Sign in* button → **Allow Drive access** → enter the same passphrase.
 
-Google keeps the browser's Drive access only until the page is reloaded, and at most for an hour; after that the Sync screen shows Google's *Sign in* button and *Allow Drive access* again. The passphrase is remembered. The local copy lives in the browser profile (IndexedDB); clearing site data removes it and the next sync restores it. Every push to `main` deploys the site; a PR's build is attached to its CI run as the **upitrack-web** artifact.
+Google keeps the browser's Drive access only until the page is reloaded, and at most for an hour; after that the Sync screen shows Google's *Sign in* button and *Allow Drive access* again. The passphrase is remembered. The local copy lives in the browser profile (IndexedDB); clearing site data removes it and the next sync restores it. Every push to `main` deploys the site; a PR's build is attached to its CI run as the **upitrack-web** artifact. The privacy policy linked from Google's consent screen is `web/privacy.html`, served at [aksh0609.github.io/upitrack/privacy.html](https://aksh0609.github.io/upitrack/privacy.html).
 
 ## Build locally
 
