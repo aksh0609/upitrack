@@ -113,9 +113,16 @@ void main() {
     await c.start();
     expect(c.state, SyncState.signedOut);
     expect(c.hasAccount, isTrue);
+    expect(c.lastError, isNull);
+
+    // Anything needing Drive now says why it could not proceed.
+    expect(await c.setPassphrase('pw'), isFalse);
+    expect(c.state, SyncState.signedOut);
+    expect(c.lastError, contains('Drive access'));
 
     await c.signIn();
     expect(c.state, SyncState.needsPassphrase);
+    expect(c.lastError, isNull);
   });
 
   test('a cancelled sign-in stays signed out; poke debounces into one sync',

@@ -92,7 +92,13 @@ class SyncController extends ChangeNotifier {
   /// about an hour, so none is kept between operations.
   Future<SyncStore?> _storeNow() async {
     final c = await _guard(_auth.client);
-    return c == null ? null : _storeFor(c);
+    if (c == null) {
+      // Never fail silently: without a client the caller falls back to
+      // signedOut, and the user needs to know why.
+      lastError ??= 'Google did not grant Drive access. Sign in again.';
+      return null;
+    }
+    return _storeFor(c);
   }
 
   Future<void> _askPassphrase() async {
