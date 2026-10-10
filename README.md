@@ -17,7 +17,7 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - Monthly dashboard: spent, received, net and today's spend
 - Spending by category, auto-guessed from the payee (Swiggy → Food, Jio → Bills)
 - Change a category once and it's remembered for that payee
-- "UPI only" filter, manual entry for cash
+- Filter chips: All / Merchants / People / Gift cards, with "UPI only" inside each; manual entry for cash
 - Duplicates are skipped: the same payment from SMS and a statement is counted once (matched by UPI reference, or by same day, amount and direction)
 - Ignores OTPs, collect requests, reminders, failed payments, promotions, and SMS from personal phone numbers
 - Light and dark mode

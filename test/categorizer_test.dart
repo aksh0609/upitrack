@@ -17,6 +17,21 @@ void main() {
       expect(cat('Jio Prepaid'), 'Bills & Recharge');
     });
 
+    test('gift cards win over the shop that sells them', () {
+      expect(cat('AMAZON GIFT CARD'), 'Gift cards');
+      expect(cat('QWIKCILVER SOLUTIONS'), 'Gift cards');
+      expect(cat('woohoo.in@icici'), 'Gift cards');
+      expect(cat('AMAZON PAY'), 'Shopping');
+      expect(cat('giftease@paytm'), 'Gift cards');
+    });
+
+    test('isPerson matches personal handles only', () {
+      expect(Categorizer.isPerson('9876543210@ybl'), isTrue);
+      expect(Categorizer.isPerson('Rahul.K@okaxis'), isTrue);
+      expect(Categorizer.isPerson('swiggy.stores@axb'), isFalse);
+      expect(Categorizer.isPerson('shop@okbizaxis'), isFalse);
+    });
+
     test('whole words only', () {
       expect(cat('bholanath sweets'), isNot('Travel'));
     });

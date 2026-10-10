@@ -12,6 +12,7 @@ import '../models/txn.dart';
 import '../sync/sync_controller.dart';
 import '../util/search.dart';
 import '../util/update_check.dart';
+import '../util/who.dart';
 import '../widgets/category_bars.dart';
 import '../widgets/merchant_bars.dart';
 import '../widgets/summary_card.dart';
@@ -54,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Txn> _txns = const [];
   bool _syncing = false;
   bool _upiOnly = false;
+  Who _who = Who.all;
   bool _searching = false;
   final TextEditingController _search = TextEditingController();
   int _shortcutCount = 0;
@@ -308,6 +310,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final visible = _txns
         .where((t) => !_upiOnly || t.channel == 'UPI')
+        .where((t) => matchesWho(t, _who))
         .where((t) =>
             _account == null ||
             (t.bank == _account!.bank && t.account == _account!.last4))
@@ -459,6 +462,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ],
                 ),
               ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  for (final w in Who.values) ...[
+                    if (w != Who.all) const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: Text(w.label),
+                      selected: _who == w,
+                      onSelected: (_) => setState(() => _who = w),
+                    ),
+                  ],
+                ],
+              ),
+            ),
             const SizedBox(height: 8),
             SummaryCard(summary: summary, showToday: _isCurrentMonth),
             if (widget.syncController != null)
@@ -548,7 +567,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
             const SizedBox(height: 4),
-            if (visible.isEmpty && _search.text.trim().isNotEmpty)
+            if (visible.isEmpty &&
+                (_search.text.trim().isNotEmpty || _who != Who.all))
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40),
                 child: Text('No payments match.', textAlign: TextAlign.center),
