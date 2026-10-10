@@ -94,7 +94,16 @@ class GoogleAuth implements SyncAuth {
       _account = account;
       return auth.authClient(scopes: _scopes);
     } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) return null;
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        // Google reports some configuration failures as cancellations
+        // (for example an Android OAuth client whose SHA-1 or package
+        // does not match this build), so say what it said.
+        throw StateError(
+            'Sign-in did not complete (${e.description ?? 'cancelled'}). '
+            'If you did not cancel it yourself, check the OAuth client in '
+            'Google Cloud: package name and SHA-1 on Android, JavaScript '
+            'origins on the web.');
+      }
       rethrow;
     }
   }
