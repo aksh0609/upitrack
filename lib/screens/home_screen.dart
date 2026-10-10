@@ -208,7 +208,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), action: action));
+      ..showSnackBar(SnackBar(
+        content: Text(message),
+        action: action,
+        // Flutter 3.47 keeps a snack bar with an action on screen until it is
+        // tapped; "Hidden / Undo" should still go away on its own.
+        persist: false,
+        duration: const Duration(seconds: 5),
+      ));
   }
 
   void _toggleSearch() {
