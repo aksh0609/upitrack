@@ -23,7 +23,7 @@ class AppDb {
     final db = await f.openDatabase(
       path ?? p.join(await f.getDatabasesPath(), 'upitrack.db'),
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onCreate: (db, version) async {
           await db.execute('''
           CREATE TABLE txns(
@@ -56,7 +56,7 @@ class AppDb {
         onUpgrade: (db, from, to) async {
           if (from < 2) await _createUnparsed(db);
           if (from < 3) await _upgradeToV3(db);
-          if (from < 4) await _upgradeToV4(db);
+          if (from < 5) await _reguessOthers(db);
         },
       ),
     );
@@ -119,11 +119,11 @@ class AppDb {
     await batch.commit(noResult: true);
   }
 
-  /// v4: the categorizer now recognises people by name (and gift cards), so
+  /// v4 and v5: the categorizer learned to tell people from businesses, so
   /// rows it previously left at Others, and nobody has touched since, get
-  /// its new guess. Automatic, so `edit_ts` stays 0; every device runs the
-  /// same migration, so nothing needs to sync.
-  static Future<void> _upgradeToV4(Database db) async {
+  /// its current guess. Automatic, so `edit_ts` stays 0; every device runs
+  /// the same migration, so nothing needs to sync.
+  static Future<void> _reguessOthers(Database db) async {
     final rules = {
       for (final r in await db.query('rules'))
         r['counterparty'] as String: r['category'] as String

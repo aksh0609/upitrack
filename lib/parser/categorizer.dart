@@ -203,134 +203,76 @@ class Categorizer {
   static final RegExp _personVpa =
       RegExp(r'^(?:\d{10}@|.+@ok(?:axis|icici|sbi|hdfcbank)$)');
 
-  /// Two to four words of letters only: "ABISHEK KUMAR", "Yogesh Kumar S".
-  static final RegExp _nameShape = RegExp(r'^[a-z]+(?: [a-z]+){1,3}$');
-
-  /// A word that makes a name-shaped payee a business, not a person.
+  /// A word that marks a payee as a business, not a person.
   static const Set<String> businessWords = {
-    'ltd',
-    'limited',
-    'pvt',
-    'private',
-    'llp',
-    'inc',
-    'corp',
-    'co',
-    'company',
-    'enterprise',
-    'enterprises',
-    'traders',
-    'trading',
-    'store',
-    'stores',
-    'shop',
-    'shoppe',
-    'mart',
-    'bazaar',
-    'bazar',
-    'market',
-    'service',
-    'services',
-    'solutions',
-    'technologies',
-    'technology',
-    'tech',
-    'systems',
-    'industries',
-    'agency',
-    'agencies',
-    'associates',
-    'international',
-    'india',
-    'retail',
-    'sales',
-    'foods',
-    'food',
-    'restaurant',
-    'cafe',
-    'hotel',
-    'hotels',
-    'dhaba',
-    'sweets',
-    'bakery',
-    'kirana',
-    'general',
-    'medical',
-    'medicals',
-    'pharma',
-    'pharmacy',
-    'clinic',
-    'hospital',
-    'electronics',
-    'mobiles',
-    'telecom',
-    'communications',
-    'petrol',
-    'petroleum',
-    'fuel',
-    'fuels',
-    'filling',
-    'station',
-    'motors',
-    'auto',
-    'automobiles',
-    'travels',
-    'tours',
-    'textiles',
-    'garments',
-    'fashion',
-    'fashions',
-    'collection',
-    'collections',
-    'jewellers',
-    'jewellery',
-    'furniture',
-    'hardware',
-    'stationery',
-    'books',
-    'academy',
-    'school',
-    'college',
-    'institute',
-    'classes',
-    'fitness',
-    'gym',
-    'salon',
-    'parlour',
-    'cabs',
-    'payments',
-    'pay',
-    'payroll',
-    'bank',
-    'finance',
-    'financial',
-    'insurance',
-    'fund',
-    'nidhi',
-    'trust',
-    'society',
-    'foundation',
-    'samiti',
-    'sangh',
-    'and',
-    'sons',
-    'brothers',
-    'bros',
-    'unknown',
+    // Legal and generic
+    'ltd', 'limited', 'pvt', 'private', 'llp', 'inc', 'corp', 'co', 'company',
+    'enterprise', 'enterprises', 'traders', 'trading', 'industries', 'agency',
+    'agencies', 'associates', 'international', 'india', 'global', 'group',
+    'ventures', 'solutions', 'services', 'service', 'systems', 'technologies',
+    'technology', 'tech', 'digital', 'online', 'app', 'apps', 'and', 'sons',
+    'brothers', 'bros', 'unknown', 'merchant', 'merchants', 'business',
+    // Shops
+    'store', 'stores', 'shop', 'shoppe', 'mart', 'supermarket', 'hypermarket',
+    'bazaar', 'bazar', 'market', 'mall', 'plaza', 'retail', 'sales',
+    'kirana', 'general', 'provision', 'provisions', 'dairy', 'collection',
+    'collections', 'textiles', 'garments', 'fashion', 'fashions', 'boutique',
+    'jewellers', 'jewellery', 'furniture', 'hardware', 'stationery', 'books',
+    'electronics', 'mobiles', 'mobile', 'computers', 'optical', 'opticals',
+    // Food and drink
+    'foods', 'food', 'restaurant', 'cafe', 'hotel', 'hotels', 'dhaba',
+    'sweets', 'bakery', 'bakers', 'confectionery', 'tea', 'chai', 'stall',
+    'juice', 'pizza', 'burger', 'biryani', 'canteen', 'mess', 'tiffin',
+    'caterers', 'catering', 'wala', 'wale',
+    // Travel, fuel, transport
+    'travels', 'tours', 'cabs', 'cab', 'taxi', 'rentals', 'logistics',
+    'courier', 'cargo', 'transport', 'transports', 'petrol', 'petroleum',
+    'fuel', 'fuels', 'filling', 'station', 'pump', 'pumps', 'motors', 'auto',
+    'automobiles', 'garage', 'tyres', 'spares', 'parking', 'toll', 'metro',
+    'railway', 'railways', 'airlines', 'airways',
+    // Health, education, services
+    'medical', 'medicals', 'pharma', 'pharmacy', 'clinic', 'hospital',
+    'diagnostics', 'labs', 'lab', 'dental', 'care', 'academy', 'school',
+    'college', 'university', 'institute', 'classes', 'coaching', 'tutorials',
+    'fitness', 'gym', 'salon', 'parlour', 'spa', 'beauty', 'tailors',
+    'cleaners', 'laundry', 'repair', 'repairs', 'workshop', 'studio',
+    'cinema', 'cinemas', 'theatre', 'club', 'resort', 'resorts', 'lodge',
+    'inn', 'hostel', 'builders', 'constructions', 'developers', 'properties',
+    'realty', 'infra', 'consultancy', 'consultants',
+    // Money, bills, institutions
+    'payments', 'pay', 'payroll', 'bank', 'finance', 'financial',
+    'insurance', 'fund', 'nidhi', 'capital', 'investments', 'securities',
+    'broking', 'loans', 'credit', 'wallet', 'recharge', 'recharges', 'bills',
+    'bill', 'utility', 'utilities', 'electricity', 'board', 'gas',
+    'broadband', 'dth', 'cable', 'telecom', 'communications', 'municipal',
+    'corporation', 'nigam', 'department', 'govt', 'government', 'trust',
+    'society', 'foundation', 'samiti', 'sangh', 'welfare', 'charitable',
+    'temple', 'mandir', 'church', 'masjid', 'gurudwara',
   };
 
-  /// True for a person rather than a business: a personal UPI handle, or a
-  /// plain name (letters only, two to four words) that is not a known
-  /// merchant and has no business word in it. Banks often report the payee
-  /// by name, so "ABISHEK KUMAR" must count as much as "9876543210@ybl".
-  static bool isPerson(String counterparty) {
-    final text = counterparty.toLowerCase();
-    if (_personVpa.hasMatch(text)) return true;
-    final name = text.replaceAll(RegExp(r'[\s.]+'), ' ').trim();
-    if (!_nameShape.hasMatch(name)) return false;
-    if (knownMerchant(name) != null) return false;
-    return !name.split(' ').any(businessWords.contains);
+  /// Merchant QR handles: PhonePe/Paytm/BharatPe business codes carry a
+  /// run of digits that is not a phone number, or an @okbiz… domain.
+  static final RegExp _merchantVpa = RegExp(
+      r'^(?:(?!\d{10}@)[^@]*\d{3,}[^@]*@|[^@]*(?:qr|merchant|store|stores|shop|pay)[^@]*@|.+@okbiz)');
+
+  /// True for a business: a known brand, a word from a spending category
+  /// (swiggy, uber, hospital…), a business word (ltd, traders, kirana…), or
+  /// a merchant QR handle. Personal UPI handles are never businesses.
+  static bool isBusiness(String counterparty) {
+    final text = counterparty.toLowerCase().trim();
+    if (_personVpa.hasMatch(text)) return false;
+    if (knownMerchant(text) != null) return true;
+    if (_patterns.values.any((ps) => ps.any((p) => p.hasMatch(text)))) {
+      return true;
+    }
+    final words = text.replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim().split(' ');
+    if (words.any(businessWords.contains)) return true;
+    return _merchantVpa.hasMatch(text);
   }
+
+  /// A person is whoever is not a business: banks report payees by name
+  /// ("ABISHEK KUMAR", "Pramod") or by personal handle ("9876543210@ybl").
+  static bool isPerson(String counterparty) => !isBusiness(counterparty);
 
   static String categorize(String counterparty, {required bool isDebit}) {
     if (!isDebit) return income;
