@@ -287,7 +287,7 @@ summary card and a warning icon on the menu; tapping it shows the error.
   "Sign out" clears the key and tokens but keeps local data.
 - Owner setup (not code): a Google Cloud project with the Drive API enabled,
   OAuth consent screen published with only the `drive.appdata` scope, and
-  three OAuth client IDs: Android (package `com.piyush.upitrack` + SHA-1 of
+  three OAuth client IDs: Android (package `com.akshay.upitrack` + SHA-1 of
   the release keystore), iOS (bundle id), Web (origin
   `https://aksh0609.github.io`). Client IDs are not secrets and are committed.
 

@@ -69,7 +69,7 @@ jobs:
           cache: true
 
       - name: Generate missing platform files
-        run: flutter create --platforms=ios --org com.piyush --project-name upitrack .
+        run: flutter create --platforms=ios --org com.akshay --project-name upitrack .
 
       - name: Add the Shortcuts action to the Xcode project
         run: |
