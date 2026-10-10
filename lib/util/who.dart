@@ -12,20 +12,32 @@ enum Who {
   final String label;
 }
 
-/// [Who.people] is anyone [Categorizer.isPerson] recognises (a personal UPI
-/// handle or a plain name like "ABISHEK KUMAR"), whatever category the
-/// payment ended up in, plus anything filed under Transfers.
-/// [Who.merchants] is every other payment out: shops, apps, bills, unknown
-/// QR codes. A payment the user filed under Gift cards shows only there;
-/// self transfers show only under [Who.all].
+/// Transfers is a person. Food, Shopping, Travel and the other spending
+/// categories are merchants, whether the parser or the user picked them.
+/// Others and Income decide by the payee: a person unless
+/// [Categorizer.isBusiness] recognises a business.
+bool _isPerson(Txn t) => switch (t.category) {
+      Categorizer.transfers => true,
+      Categorizer.others ||
+      Categorizer.income =>
+        Categorizer.isPerson(t.counterparty),
+      _ => false,
+    };
+
+/// A payment filed under Gift cards shows only there; self transfers show
+/// only under [Who.all]. [Who.merchants] is money out, [Who.people] both
+/// directions.
 bool matchesWho(Txn t, Who who) {
   final c = t.category;
-  if (who == Who.all) return true;
-  if (who == Who.giftCards) return c == Categorizer.giftCards;
-  if (c == Categorizer.selfTransfer || c == Categorizer.giftCards) {
-    return false;
-  }
-  final person =
-      c == Categorizer.transfers || Categorizer.isPerson(t.counterparty);
-  return who == Who.people ? person : t.isDebit && !person;
+  return switch (who) {
+    Who.all => true,
+    Who.giftCards => c == Categorizer.giftCards,
+    Who.people => c != Categorizer.selfTransfer &&
+        c != Categorizer.giftCards &&
+        _isPerson(t),
+    Who.merchants => t.isDebit &&
+        c != Categorizer.selfTransfer &&
+        c != Categorizer.giftCards &&
+        !_isPerson(t),
+  };
 }

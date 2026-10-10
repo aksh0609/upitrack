@@ -25,29 +25,44 @@ void main() {
       expect(cat('giftease@paytm'), 'Gift cards');
     });
 
-    test('isPerson: personal handles and plain names, not businesses', () {
-      expect(Categorizer.isPerson('9876543210@ybl'), isTrue);
-      expect(Categorizer.isPerson('Rahul.K@okaxis'), isTrue);
-      expect(Categorizer.isPerson('ABISHEK KUMAR'), isTrue);
-      expect(Categorizer.isPerson('YOGESH KUMAR S'), isTrue);
-      expect(Categorizer.isPerson('Mohammed Abdul Rahman Khan'), isTrue);
-      expect(Categorizer.isPerson('swiggy.stores@axb'), isFalse);
-      expect(Categorizer.isPerson('shop@okbizaxis'), isFalse);
-      expect(Categorizer.isPerson('paytmqr281005@paytm'), isFalse);
-      expect(Categorizer.isPerson('SHARMA TRADERS'), isFalse);
-      expect(Categorizer.isPerson('GUPTA GENERAL STORE'), isFalse);
-      expect(Categorizer.isPerson('AMAZON PAY INDIA'), isFalse);
-      expect(Categorizer.isPerson('GOOGLE PAY'), isFalse);
-      expect(Categorizer.isPerson('INFOSYS LIMITED'), isFalse);
-      expect(Categorizer.isPerson('Unknown'), isFalse);
-      expect(Categorizer.isPerson('ZEPTO'), isFalse);
+    test('a person is whoever is not a recognisable business', () {
+      for (final person in [
+        '9876543210@ybl',
+        'Rahul.K@okaxis',
+        'pramod@ybl',
+        'PRAMOD',
+        'ABISHEK KUMAR',
+        'YOGESH KUMAR S',
+        'Mohammed Abdul Rahman Khan',
+      ]) {
+        expect(Categorizer.isPerson(person), isTrue, reason: person);
+      }
+      for (final business in [
+        'swiggy.stores@axb', // known brand
+        'ZEPTO',
+        'shop@okbizaxis', // merchant handle
+        'paytmqr281005@paytm',
+        'q98765432@ybl',
+        'bharatpe09876543@yesbankltd',
+        'SHARMA TRADERS', // business words
+        'GUPTA GENERAL STORE',
+        'AMAZON PAY INDIA',
+        'GOOGLE PAY',
+        'INFOSYS LIMITED',
+        'RAJ CHAI STALL',
+        'CITY HOSPITAL', // a category keyword
+        'Unknown',
+      ]) {
+        expect(Categorizer.isBusiness(business), isTrue, reason: business);
+      }
     });
 
     test('a person paid by name is a transfer; a shop by name is not', () {
       expect(cat('ABISHEK KUMAR'), 'Transfers');
-      expect(cat('YOGESH KUMAR S'), 'Transfers');
+      expect(cat('PRAMOD'), 'Transfers');
       expect(cat('SHARMA TRADERS'), 'Others');
       expect(cat('bholanath sweets'), 'Others');
+      expect(cat('Unknown'), 'Others');
     });
 
     test('whole words only', () {
