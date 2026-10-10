@@ -1,4 +1,4 @@
-package com.piyush.upitrack
+package com.akshay.upitrack
 
 import android.net.Uri
 import io.flutter.embedding.android.FlutterActivity

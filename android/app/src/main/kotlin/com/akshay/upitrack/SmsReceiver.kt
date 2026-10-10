@@ -1,4 +1,4 @@
-package com.piyush.upitrack
+package com.akshay.upitrack
 
 import android.content.BroadcastReceiver
 import android.content.Context
