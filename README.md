@@ -24,7 +24,7 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - **Didn't catch this?** A bank SMS the app can't read is kept in a "Not recognised" list: add it by hand, ignore it, or report an anonymised copy so the next version understands it
 - **Instant notifications (Android):** "-₹250 to SWIGGY · Food" the moment the bank SMS arrives, even with the app closed
 - Hidden payments can be restored from menu → Hidden
-- Tells you when a new version is available (Android; the APK is installed by hand)
+- Tells you when a new build is available and installs it from inside the app (Android)
 - **Merchants:** payees are grouped into merchants (Swiggy, Amazon, Flipkart, Myntra, Zomato…). The home screen shows your top merchants for the month; tap one for the last six months and every payment to it
 - **Search** by payee or merchant
 - **Accounts:** every bank account seen in your SMS becomes a chip (HDFC •••1234, SBI •••5678) that filters the whole month, no setup needed
@@ -34,7 +34,7 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 
 ## Get the Android APK
 
-The latest release is on the [Releases page](https://github.com/aksh0609/upitrack/releases/latest): download `app-release.apk`, copy it to your Android phone and open it (allow "Install unknown apps" when asked). The app shows a banner when a newer release exists.
+The latest release is on the [Releases page](https://github.com/aksh0609/upitrack/releases/latest): download `app-release.apk`, copy it to your Android phone and open it (allow "Install unknown apps" when asked). From then on the app checks GitHub every 15 minutes (and on the refresh button) for a newer release, test builds included, and offers an **Update** button that downloads the APK and opens Android's installer. Your data and sign-in stay, because every build is signed with the same key.
 
 Every push to `main` also builds a test APK: open the **Actions** tab, pick the latest **Test and build** run and download the **upitrack-apk** artifact.
 

@@ -52,7 +52,7 @@ jobs:
             echo "keyPassword=$KEY_PASSWORD"
           } > android/key.properties
 
-      - run: flutter build apk --release
+      - run: flutter build apk --release --dart-define=BUILD_TIME=$(git log -1 --format=%ct)
 
       - uses: softprops/action-gh-release@v2
         with:

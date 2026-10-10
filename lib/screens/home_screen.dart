@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +12,7 @@ import '../models/account.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
 import '../sync/sync_controller.dart';
+import '../util/apk_installer.dart';
 import '../util/search.dart';
 import '../util/update_check.dart';
 import '../util/who.dart';
@@ -64,6 +67,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   AccountRef? _account;
   UpdateInfo? _update;
 
+  /// 0..1 while an update APK downloads; null otherwise.
+  double? _updateProgress;
+
   bool get _isCurrentMonth {
     final now = DateTime.now();
     return _month.year == now.year && _month.month == now.month;
@@ -81,15 +87,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Android only: the APK is installed by hand, so tell people about new
   /// releases. Web is always current; iPhone updates through TestFlight.
-  Future<void> _checkUpdate() async {
+  Future<void> _checkUpdate({bool force = false}) async {
     final checker = widget.updateChecker;
     if (checker == null ||
         kIsWeb ||
         defaultTargetPlatform != TargetPlatform.android) {
       return;
     }
-    final info = await checker.check();
+    final info = await checker.check(force: force);
     if (mounted) setState(() => _update = info);
+  }
+
+  /// Download the APK and let Android's installer take over; without an APK
+  /// asset, open the release page instead.
+  Future<void> _installUpdate() async {
+    final apk = _update?.apkUrl;
+    if (apk == null) {
+      await launchUrl(Uri.parse(_update!.url),
+          mode: LaunchMode.externalApplication);
+      return;
+    }
+    setState(() => _updateProgress = 0);
+    try {
+      await downloadAndInstall(Uri.parse(apk), onProgress: (p) {
+        if (mounted) setState(() => _updateProgress = p);
+      });
+    } catch (e) {
+      _snack('Update failed: $e');
+    } finally {
+      if (mounted) setState(() => _updateProgress = null);
+    }
   }
 
   Future<void> _dismissUpdate() async {
@@ -184,6 +211,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
     await _load();
+    unawaited(_checkUpdate(force: true));
     await widget.syncController?.syncNow();
   }
 
@@ -423,8 +451,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             if (_update != null)
               _UpdateCard(
                 info: _update!,
-                onDownload: () => launchUrl(Uri.parse(_update!.url),
-                    mode: LaunchMode.externalApplication),
+                progress: _updateProgress,
+                onInstall: _installUpdate,
                 onDismiss: _dismissUpdate,
               ),
             if (_access == _Access.denied ||
@@ -833,12 +861,16 @@ class _UnparsedCard extends StatelessWidget {
 class _UpdateCard extends StatelessWidget {
   const _UpdateCard({
     required this.info,
-    required this.onDownload,
+    required this.progress,
+    required this.onInstall,
     required this.onDismiss,
   });
 
   final UpdateInfo info;
-  final VoidCallback onDownload;
+
+  /// Download progress 0..1, or null when idle.
+  final double? progress;
+  final VoidCallback onInstall;
   final VoidCallback onDismiss;
 
   @override
@@ -853,19 +885,31 @@ class _UpdateCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Version ${info.tag.replaceFirst('v', '')} is available',
-                style: text.titleMedium),
+            Text('${info.title} is available', style: text.titleMedium),
             const SizedBox(height: 4),
-            Text('Download the new APK and open it to update.',
-                style: text.bodyMedium),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(onPressed: onDismiss, child: const Text('Later')),
-                FilledButton(
-                    onPressed: onDownload, child: const Text('Download')),
-              ],
-            ),
+            if (progress != null) ...[
+              Text('Downloading\u2026 ${(progress! * 100).round()}%',
+                  style: text.bodyMedium),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: progress == 0 ? null : progress),
+              const SizedBox(height: 8),
+            ] else ...[
+              Text(
+                  info.apkUrl == null
+                      ? 'Download the new APK and open it to update.'
+                      : 'Tap Update; Android asks you to confirm. Your data '
+                          'and sign-in stay.',
+                  style: text.bodyMedium),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(onPressed: onDismiss, child: const Text('Later')),
+                  FilledButton(
+                      onPressed: onInstall,
+                      child: Text(info.apkUrl == null ? 'Download' : 'Update')),
+                ],
+              ),
+            ],
           ],
         ),
       ),

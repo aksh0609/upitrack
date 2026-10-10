@@ -1,14 +1,18 @@
 package com.akshay.upitrack
 
+import android.content.Intent
 import android.net.Uri
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 import java.util.concurrent.Executors
 
 /**
- * Hosts the Flutter app and exposes one method to Dart:
- * readInbox(sinceMillis) -> list of {id, address, body, date}.
+ * Hosts the Flutter app and exposes two methods to Dart:
+ * readInbox(sinceMillis) -> list of {id, address, body, date}, and
+ * install(path), which opens Android's installer on a downloaded APK.
  *
  * SMS are read on a background thread and handed to Dart; they are never
  * sent anywhere else.
@@ -39,6 +43,34 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "install" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("BAD_ARGS", "path missing", null)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            installApk(File(path))
+                            result.success(null)
+                        } catch (e: Exception) {
+                            result.error("INSTALL_FAILED", e.message, null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /** Hands [file] to the package installer, which asks the user to confirm. */
+    private fun installApk(file: File) {
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
     }
 
     private fun readInbox(sinceMillis: Long): List<Map<String, Any?>> {
@@ -77,5 +109,6 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val CHANNEL = "upitrack/sms"
+        private const val UPDATE_CHANNEL = "upitrack/update"
     }
 }
