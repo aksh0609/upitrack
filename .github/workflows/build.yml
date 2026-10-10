@@ -50,7 +50,7 @@ jobs:
           } > android/key.properties
 
       - name: Build release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=BUILD_TIME=$(git log -1 --format=%ct)
 
       - uses: actions/upload-artifact@v4
         with:

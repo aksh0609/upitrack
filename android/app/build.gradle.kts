@@ -74,4 +74,6 @@ flutter {
 dependencies {
     // Required by flutter_local_notifications (java.time on older Android).
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // FileProvider for in-app updates (MainActivity.installApk).
+    implementation("androidx.core:core-ktx:1.16.0")
 }

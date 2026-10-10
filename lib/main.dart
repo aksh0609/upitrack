@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
@@ -18,12 +17,19 @@ import 'sync/sync_controller.dart';
 import 'sync/sync_keys.dart';
 import 'util/update_check.dart';
 
+/// Commit time of this build, stamped by CI with
+/// `--dart-define=BUILD_TIME=$(git log -1 --format=%ct)`; null when built by hand.
+final DateTime? kBuildTime = const int.fromEnvironment('BUILD_TIME') == 0
+    ? null
+    : DateTime.fromMillisecondsSinceEpoch(
+        const int.fromEnvironment('BUILD_TIME') * 1000,
+        isUtc: true);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Browser: SQLite compiled to WebAssembly, persisted in IndexedDB (spec §4.8).
   if (kIsWeb) databaseFactory = databaseFactoryFfiWeb;
   final db = await AppDb.open();
-  final info = await PackageInfo.fromPlatform();
   final auth = GoogleAuth();
   final sync = SyncController(
     db,
@@ -35,7 +41,7 @@ Future<void> main() async {
   auth.onAccountChanged = () => unawaited(sync.start());
   runApp(UpiTrackApp(
     repository: TxnRepository(db, SmsSource(), ShortcutInbox()),
-    updateChecker: UpdateChecker(db, currentVersion: info.version),
+    updateChecker: UpdateChecker(db, buildTime: kBuildTime),
     syncController: sync,
   ));
   unawaited(sync.start());
