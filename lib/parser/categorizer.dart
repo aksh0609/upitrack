@@ -1,3 +1,5 @@
+import 'merchant.dart';
+
 /// Guesses a spending category from the payee name or UPI ID.
 ///
 /// The user can always change it in the app, and that choice is remembered
@@ -201,9 +203,134 @@ class Categorizer {
   static final RegExp _personVpa =
       RegExp(r'^(?:\d{10}@|.+@ok(?:axis|icici|sbi|hdfcbank)$)');
 
-  /// True for a personal UPI handle rather than a business.
-  static bool isPerson(String counterparty) =>
-      _personVpa.hasMatch(counterparty.toLowerCase());
+  /// Two to four words of letters only: "ABISHEK KUMAR", "Yogesh Kumar S".
+  static final RegExp _nameShape = RegExp(r'^[a-z]+(?: [a-z]+){1,3}$');
+
+  /// A word that makes a name-shaped payee a business, not a person.
+  static const Set<String> businessWords = {
+    'ltd',
+    'limited',
+    'pvt',
+    'private',
+    'llp',
+    'inc',
+    'corp',
+    'co',
+    'company',
+    'enterprise',
+    'enterprises',
+    'traders',
+    'trading',
+    'store',
+    'stores',
+    'shop',
+    'shoppe',
+    'mart',
+    'bazaar',
+    'bazar',
+    'market',
+    'service',
+    'services',
+    'solutions',
+    'technologies',
+    'technology',
+    'tech',
+    'systems',
+    'industries',
+    'agency',
+    'agencies',
+    'associates',
+    'international',
+    'india',
+    'retail',
+    'sales',
+    'foods',
+    'food',
+    'restaurant',
+    'cafe',
+    'hotel',
+    'hotels',
+    'dhaba',
+    'sweets',
+    'bakery',
+    'kirana',
+    'general',
+    'medical',
+    'medicals',
+    'pharma',
+    'pharmacy',
+    'clinic',
+    'hospital',
+    'electronics',
+    'mobiles',
+    'telecom',
+    'communications',
+    'petrol',
+    'petroleum',
+    'fuel',
+    'fuels',
+    'filling',
+    'station',
+    'motors',
+    'auto',
+    'automobiles',
+    'travels',
+    'tours',
+    'textiles',
+    'garments',
+    'fashion',
+    'fashions',
+    'collection',
+    'collections',
+    'jewellers',
+    'jewellery',
+    'furniture',
+    'hardware',
+    'stationery',
+    'books',
+    'academy',
+    'school',
+    'college',
+    'institute',
+    'classes',
+    'fitness',
+    'gym',
+    'salon',
+    'parlour',
+    'cabs',
+    'payments',
+    'pay',
+    'payroll',
+    'bank',
+    'finance',
+    'financial',
+    'insurance',
+    'fund',
+    'nidhi',
+    'trust',
+    'society',
+    'foundation',
+    'samiti',
+    'sangh',
+    'and',
+    'sons',
+    'brothers',
+    'bros',
+    'unknown',
+  };
+
+  /// True for a person rather than a business: a personal UPI handle, or a
+  /// plain name (letters only, two to four words) that is not a known
+  /// merchant and has no business word in it. Banks often report the payee
+  /// by name, so "ABISHEK KUMAR" must count as much as "9876543210@ybl".
+  static bool isPerson(String counterparty) {
+    final text = counterparty.toLowerCase();
+    if (_personVpa.hasMatch(text)) return true;
+    final name = text.replaceAll(RegExp(r'[\s.]+'), ' ').trim();
+    if (!_nameShape.hasMatch(name)) return false;
+    if (knownMerchant(name) != null) return false;
+    return !name.split(' ').any(businessWords.contains);
+  }
 
   static String categorize(String counterparty, {required bool isDebit}) {
     if (!isDebit) return income;
