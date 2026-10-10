@@ -15,6 +15,7 @@ const List<CategoryInfo> kCategories = [
   CategoryInfo('Food', Icons.restaurant, Color(0xFFE76F51)),
   CategoryInfo('Groceries', Icons.local_grocery_store, Color(0xFF2A9D8F)),
   CategoryInfo('Shopping', Icons.shopping_bag, Color(0xFF8E44AD)),
+  CategoryInfo(Categorizer.giftCards, Icons.card_giftcard, Color(0xFFD81B60)),
   CategoryInfo('Travel', Icons.directions_car, Color(0xFF3A86FF)),
   CategoryInfo('Fuel', Icons.local_gas_station, Color(0xFFF4A261)),
   CategoryInfo('Bills & Recharge', Icons.receipt_long, Color(0xFF457B9D)),

@@ -7,6 +7,7 @@ class Categorizer {
 
   static const String income = 'Income';
   static const String transfers = 'Transfers';
+  static const String giftCards = 'Gift cards';
 
   /// Money moved between the user's own accounts. Never guessed here; only
   /// TxnRepository's pairing assigns it (spec §3.3).
@@ -16,6 +17,21 @@ class Categorizer {
   /// Checked top to bottom, so put more specific words first
   /// (e.g. "prime video" before "amazon").
   static const Map<String, List<String>> keywords = {
+    // First, so "amazon gift card" is a gift card and not Shopping.
+    'Gift cards': [
+      'gift',
+      'giftcard',
+      'giftcards',
+      'egift',
+      'egiftcard',
+      'e-gift',
+      'woohoo',
+      'qwikcilver',
+      'gyftr',
+      'vouchagram',
+      'zingoy',
+      'giftease',
+    ],
     'Food': [
       'swiggy',
       'zomato',
@@ -185,13 +201,17 @@ class Categorizer {
   static final RegExp _personVpa =
       RegExp(r'^(?:\d{10}@|.+@ok(?:axis|icici|sbi|hdfcbank)$)');
 
+  /// True for a personal UPI handle rather than a business.
+  static bool isPerson(String counterparty) =>
+      _personVpa.hasMatch(counterparty.toLowerCase());
+
   static String categorize(String counterparty, {required bool isDebit}) {
     if (!isDebit) return income;
     final text = counterparty.toLowerCase();
     for (final e in _patterns.entries) {
       if (e.value.any((p) => p.hasMatch(text))) return e.key;
     }
-    if (_personVpa.hasMatch(text)) return transfers;
+    if (isPerson(text)) return transfers;
     return others;
   }
 
