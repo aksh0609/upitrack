@@ -23,7 +23,7 @@ class AppDb {
     final db = await f.openDatabase(
       path ?? p.join(await f.getDatabasesPath(), 'upitrack.db'),
       options: OpenDatabaseOptions(
-        version: 3,
+        version: 4,
         onCreate: (db, version) async {
           await db.execute('''
           CREATE TABLE txns(
@@ -56,6 +56,7 @@ class AppDb {
         onUpgrade: (db, from, to) async {
           if (from < 2) await _createUnparsed(db);
           if (from < 3) await _upgradeToV3(db);
+          if (from < 4) await _upgradeToV4(db);
         },
       ),
     );
@@ -115,6 +116,31 @@ class AppDb {
     }
     batch.insert('meta', {'k': 'sync_dirty', 'v': '1'},
         conflictAlgorithm: ConflictAlgorithm.replace);
+    await batch.commit(noResult: true);
+  }
+
+  /// v4: the categorizer now recognises people by name (and gift cards), so
+  /// rows it previously left at Others, and nobody has touched since, get
+  /// its new guess. Automatic, so `edit_ts` stays 0; every device runs the
+  /// same migration, so nothing needs to sync.
+  static Future<void> _upgradeToV4(Database db) async {
+    final rules = {
+      for (final r in await db.query('rules'))
+        r['counterparty'] as String: r['category'] as String
+    };
+    final batch = db.batch();
+    for (final r in await db.query('txns',
+        columns: ['id', 'counterparty'],
+        where: 'is_debit = 1 AND edit_ts = 0 AND category = ?',
+        whereArgs: [Categorizer.others])) {
+      final guess = Categorizer.categorizeWith(
+          rules, r['counterparty'] as String,
+          isDebit: true);
+      if (guess != Categorizer.others) {
+        batch.update('txns', {'category': guess},
+            where: 'id = ?', whereArgs: [r['id']]);
+      }
+    }
     await batch.commit(noResult: true);
   }
 

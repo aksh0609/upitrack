@@ -16,6 +16,8 @@ void main() {
   final swiggy = txn('SWIGGY', 'Food');
   final unknownShop = txn('paytmqr281005@paytm', 'Others');
   final friend = txn('9876543210@ybl', 'Transfers');
+  final byName = txn('ABISHEK KUMAR', 'Others'); // filed before v4
+  final friendForFood = txn('YOGESH KUMAR S', 'Food'); // user's own pick
   final fromFriend = txn('rahul.k@okaxis', 'Income', isDebit: false);
   final salary = txn('ACME PAYROLL', 'Income', isDebit: false);
   final gift = txn('AMAZON GIFT CARD', 'Gift cards');
@@ -25,6 +27,8 @@ void main() {
         swiggy,
         unknownShop,
         friend,
+        byName,
+        friendForFood,
         fromFriend,
         salary,
         gift,
@@ -32,15 +36,15 @@ void main() {
       ].where((t) => matchesWho(t, who)).toList();
 
   test('All keeps everything', () {
-    expect(pick(Who.all).length, 7);
+    expect(pick(Who.all).length, 9);
   });
 
   test('Merchants are debits to businesses, whatever the category', () {
     expect(pick(Who.merchants), [swiggy, unknownShop]);
   });
 
-  test('People covers transfers out and money in from personal handles', () {
-    expect(pick(Who.people), [friend, fromFriend]);
+  test('People: by handle or by name, whatever the category, and money in', () {
+    expect(pick(Who.people), [friend, byName, friendForFood, fromFriend]);
   });
 
   test('Gift cards is the category alone', () {
