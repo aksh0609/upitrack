@@ -37,6 +37,10 @@ enum _Access { checking, granted, denied, permanentlyDenied, iphone, web }
 /// iPhone, not the web app. `Platform.isIOS` is unavailable on the web.
 bool get _isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
+/// The web app opened on an iPhone: no Shortcuts action of its own, but the
+/// automation can still log bank SMS to a file that the user imports.
+bool get _isIphoneWeb => kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen(
       {super.key,
@@ -205,11 +209,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } finally {
         if (mounted) setState(() => _syncing = false);
       }
-      if (_access == _Access.iphone) {
-        final count = await widget.repository.shortcutMessageCount();
-        if (mounted) setState(() => _shortcutCount = count);
-      }
     }
+    await _refreshShortcutCount();
     await _load();
     unawaited(_checkUpdate(force: true));
     await widget.syncController?.syncNow();
@@ -282,7 +283,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _importStatement() async {
     final added = await importStatement(context, widget.repository);
-    if (added) await _load();
+    if (added) {
+      await _refreshShortcutCount();
+      await _load();
+    }
+  }
+
+  /// How many bank SMS the Shortcuts route has delivered; drives the iPhone
+  /// set-up card and the guide's status line.
+  Future<void> _refreshShortcutCount() async {
+    if (_access != _Access.iphone && !_isIphoneWeb) return;
+    final count = await widget.repository.shortcutMessageCount();
+    if (mounted) setState(() => _shortcutCount = count);
   }
 
   Future<void> _openIphoneSetup() async {
@@ -404,7 +416,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 value: 'import',
                 child: ListTile(
                   leading: Icon(Icons.upload_file),
-                  title: Text('Import statement'),
+                  title: Text('Import file'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -424,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     title: Text('Sync'),
                   ),
                 ),
-              if (_access == _Access.iphone)
+              if (_access == _Access.iphone || _isIphoneWeb)
                 const PopupMenuItem(
                   value: 'iphone',
                   child: ListTile(
@@ -461,7 +473,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 permanentlyDenied: _access == _Access.permanentlyDenied,
                 onPressed: _requestAccess,
               ),
-            if (_access == _Access.iphone && _shortcutCount == 0)
+            if ((_access == _Access.iphone || _isIphoneWeb) &&
+                _shortcutCount == 0)
               _IphoneCard(
                   onSetup: _openIphoneSetup, onImport: _importStatement),
             if (_access == _Access.web &&
@@ -611,7 +624,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             else if (visible.isEmpty)
               _EmptyState(
                   waitingForAccess: _access != _Access.granted &&
-                      !(_access == _Access.iphone && _shortcutCount > 0))
+                      !((_access == _Access.iphone || _isIphoneWeb) &&
+                          _shortcutCount > 0))
             else
               ...txnsGroupedByDay(context, visible,
                   onTap: _openTxn, onHide: _hideTxn),
@@ -783,9 +797,15 @@ class _IphoneCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'iPhones don\'t let apps read SMS. Set up a one-time Shortcuts '
-              'automation (about a minute) and every bank SMS will be passed '
-              'to this app. Import a statement to fill in older months.',
+              kIsWeb
+                  ? 'iPhones don\'t let apps read SMS. Set up a one-time '
+                      'Shortcuts automation (about a minute) and every bank '
+                      'SMS is saved to a file in your iCloud Drive that you '
+                      'import here. Import a statement to fill in older months.'
+                  : 'iPhones don\'t let apps read SMS. Set up a one-time '
+                      'Shortcuts automation (about a minute) and every bank '
+                      'SMS will be passed to this app. Import a statement to '
+                      'fill in older months.',
               style: text.bodyMedium,
             ),
             const SizedBox(height: 12),
@@ -795,7 +815,7 @@ class _IphoneCard extends StatelessWidget {
               children: [
                 FilledButton(onPressed: onSetup, child: const Text('Set up')),
                 OutlinedButton(
-                    onPressed: onImport, child: const Text('Import statement')),
+                    onPressed: onImport, child: const Text('Import file')),
               ],
             ),
           ],

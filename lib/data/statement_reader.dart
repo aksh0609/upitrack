@@ -25,7 +25,8 @@ class UnreadableFile implements Exception {
 class StatementReader {
   StatementReader._();
 
-  static const List<String> extensions = ['pdf', 'csv'];
+  /// TXT is the SMS log written by the iPhone Shortcuts automation.
+  static const List<String> extensions = ['pdf', 'csv', 'txt'];
 
   /// Reads a statement file. Everything happens on the phone.
   static Future<StatementResult> read({

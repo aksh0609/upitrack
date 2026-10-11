@@ -5,10 +5,11 @@ import '../parser/categorizer.dart';
 import '../parser/sms_parser.dart';
 import '../parser/statement_parser.dart';
 import 'db.dart';
+import '../util/hash.dart';
 import 'shortcut_inbox.dart';
 import 'sms_source.dart';
 
-/// Result of importing a statement.
+/// Result of importing a statement or an SMS log.
 class ImportSummary {
   const ImportSummary({
     required this.added,
@@ -21,7 +22,9 @@ class ImportSummary {
   /// Already in the app (from SMS, the iPhone shortcut or an earlier import).
   final int duplicates;
 
-  /// Rows the parser couldn't read reliably.
+  /// Rows the parser couldn't read reliably. For an SMS log: messages that
+  /// look like bank payments but could not be read; they wait under
+  /// "Not recognised".
   final int unreadable;
 }
 
@@ -88,15 +91,42 @@ class TxnRepository {
     await _db.purgeUnparsed(before: DateTime.now().subtract(unparsedRetention));
     final messages = await _inbox.pending();
     if (messages.isEmpty) return 0;
+    final stored = await _storeMessages(messages, keyPrefix: 'shortcut');
+    await _inbox.remove(messages);
+    await _countShortcutMessages(messages.length);
+    return stored.added;
+  }
+
+  /// Stores bank SMS from the text log the iPhone Shortcuts automation
+  /// appends to (the web app's route, README → iPhone auto-tracking).
+  /// Re-importing the same file adds nothing: entries are keyed by UPI
+  /// reference, or by a hash of their time and text when there is none.
+  Future<ImportSummary> importSmsLog(List<InboxMessage> messages) async {
+    if (messages.isEmpty) {
+      return const ImportSummary(added: 0, duplicates: 0, unreadable: 0);
+    }
+    final stored = await _storeMessages(messages, keyPrefix: 'log');
+    await _countShortcutMessages(stored.added);
+    return ImportSummary(
+      added: stored.added,
+      duplicates: stored.parsed - stored.added,
+      unreadable: stored.unparsed,
+    );
+  }
+
+  Future<({int added, int parsed, int unparsed})> _storeMessages(
+      List<InboxMessage> messages,
+      {required String keyPrefix}) async {
     final rules = await _db.rules();
     final txns = <Txn>[];
     final unparsed = <UnparsedSms>[];
     for (final m in messages) {
+      final key = '$keyPrefix:${m.id}';
       final t = _fromSms(
         sender: m.sender,
         body: m.body,
         time: m.date,
-        fallbackKey: 'shortcut:${m.id}',
+        fallbackKey: key,
         source: 'shortcut',
         rules: rules,
       );
@@ -104,20 +134,19 @@ class TxnRepository {
         txns.add(t);
       } else if (SmsParser.looksLikeTransaction(m.sender, m.body)) {
         unparsed.add(UnparsedSms(
-            key: 'shortcut:${m.id}',
-            sender: m.sender,
-            body: m.body,
-            time: m.date));
+            key: key, sender: m.sender, body: m.body, time: m.date));
       }
     }
     final added = await _db.insertAll(txns);
     if (added > 0) await _pairAround(txns);
     await _db.insertUnparsed(unparsed);
-    await _inbox.remove(messages);
+    return (added: added, parsed: txns.length, unparsed: unparsed.length);
+  }
 
+  Future<void> _countShortcutMessages(int n) async {
+    if (n == 0) return;
     final seen = int.tryParse(await _db.getMeta('shortcut_count') ?? '') ?? 0;
-    await _db.setMeta('shortcut_count', '${seen + messages.length}');
-    return added;
+    await _db.setMeta('shortcut_count', '${seen + n}');
   }
 
   /// How many messages the iPhone shortcut has delivered so far. 0 means
@@ -242,15 +271,8 @@ class TxnRepository {
   static String _sameDayKey(DateTime d, int amount, bool isDebit) =>
       '${_ymd(d)}|$amount|${isDebit ? 'd' : 'c'}';
 
-  /// Small stable hash (FNV-1a) so the same row gets the same key every time.
-  static String _hash(String s) {
-    var h = 0x811c9dc5;
-    for (final c in s.codeUnits) {
-      h ^= c;
-      h = (h * 0x01000193) & 0xffffffff;
-    }
-    return h.toRadixString(16);
-  }
+  /// Small stable hash so the same row gets the same key every time.
+  static String _hash(String s) => fnv1a(s);
 
   // -------------------------------------------------------- self transfers
 
