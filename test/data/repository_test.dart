@@ -764,4 +764,49 @@ void main() {
       expect(await db.getMeta('unpaired_ids'), isNull);
     });
   });
+
+  group('importSmsLog', () {
+    const noRef =
+        'Sent Rs.120.00\nFrom HDFC Bank A/C *1234\nTo PRAMOD\nOn 03/10/26';
+    const ucoBody =
+        'Your a/c 1234 has a withdrawal of INR 320.00 at 10:12 towards UPI/9876';
+    InboxMessage msg(String id, String body, DateTime date) =>
+        InboxMessage(id: id, sender: '', body: body, date: date);
+
+    test('stores dated messages once; the same file imports nothing twice',
+        () async {
+      final repo = TxnRepository(db, FakeSms(const []), FakeInbox());
+      final day = DateTime(2026, 10, 3, 9);
+      final messages = [
+        msg('a1', hdfcSwiggy, day),
+        msg('b2', noRef, day.add(const Duration(hours: 1))),
+        msg('c3', ucoBody, day.add(const Duration(hours: 2))),
+        msg('d4', '123456 is your OTP for Rs 500.', day),
+      ];
+      final first = await repo.importSmsLog(messages);
+      expect((first.added, first.duplicates, first.unreadable), (2, 0, 1));
+
+      final stored = await repo.between(DateTime(2026, 10), DateTime(2026, 11));
+      expect(stored.map((t) => t.key).toSet(), {'ref:427612345678:d', 'log:b2'},
+          reason: 'UPI reference when there is one, else the log id');
+      expect(stored.map((t) => t.source).toSet(), {'shortcut'});
+      expect((await repo.unparsed()).single.key, 'log:c3');
+      expect(await repo.shortcutMessageCount(), 2);
+
+      final again = await repo.importSmsLog(messages);
+      expect((again.added, again.duplicates, again.unreadable), (0, 2, 1));
+      expect(await repo.between(DateTime(2026, 10), DateTime(2026, 11)),
+          hasLength(2));
+      expect(await repo.unparsed(), hasLength(1));
+      expect(await repo.shortcutMessageCount(), 2,
+          reason: 'only new rows count');
+    });
+
+    test('nothing to import leaves the counter alone', () async {
+      final repo = TxnRepository(db, FakeSms(const []), FakeInbox());
+      final r = await repo.importSmsLog(const []);
+      expect((r.added, r.duplicates, r.unreadable), (0, 0, 0));
+      expect(await repo.shortcutMessageCount(), 0);
+    });
+  });
 }

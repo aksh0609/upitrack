@@ -1,12 +1,16 @@
+import 'dart:convert';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../data/repository.dart';
 import '../data/statement_reader.dart';
+import '../parser/sms_log.dart';
 import '../parser/statement_parser.dart';
 
-/// Pick a statement file, unlock it if needed, preview and import.
+/// Pick a statement (PDF or CSV; unlocked if needed) or the SMS log written
+/// by the iPhone Shortcuts automation (TXT), preview and import.
 /// Returns true if anything was added.
 Future<bool> importStatement(
     BuildContext context, TxnRepository repository) async {
@@ -21,6 +25,13 @@ Future<bool> importStatement(
   if (bytes == null) {
     if (context.mounted) _snack(context, 'Could not read that file.');
     return false;
+  }
+
+  if (!context.mounted) return false;
+  final isText = file.name.toLowerCase().endsWith('.txt');
+  if (isText) {
+    final log = SmsLog.parse(utf8.decode(bytes, allowMalformed: true));
+    if (log.messages.isNotEmpty) return _importSmsLog(context, repository, log);
   }
 
   String? password;
@@ -51,9 +62,11 @@ Future<bool> importStatement(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('No transactions found'),
-        content: const Text(
+        content: Text(
           "This file's layout wasn't recognised. Try the CSV download from "
-          'your net banking, or a PDF statement from the bank or UPI app.',
+          'your net banking, or a PDF statement from the bank or UPI app.'
+          '${isText ? '\n\nAn SMS log needs a date at the start of every '
+              'entry: see menu → iPhone auto-tracking.' : ''}',
         ),
         actions: [
           TextButton(
@@ -73,6 +86,45 @@ Future<bool> importStatement(
       '${summary.added} added',
       if (summary.duplicates > 0) '${summary.duplicates} already there',
       if (summary.unreadable > 0) '${summary.unreadable} unreadable',
+    ];
+    _snack(context, parts.join(' · '));
+  }
+  return summary.added > 0;
+}
+
+Future<bool> _importSmsLog(
+    BuildContext context, TxnRepository repository, SmsLogResult log) async {
+  final dates = log.messages.map((m) => m.date).toList()..sort();
+  final f = DateFormat('d MMM y');
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Import ${log.messages.length} bank messages?'),
+      content: Text(
+        '${f.format(dates.first)} to ${f.format(dates.last)}.\n'
+        'Messages already in the app are skipped, so you can import the '
+        'same file again later.'
+        '${log.undated > 0 ? '\n\n${log.undated} lines have no date and are '
+            'skipped: see menu → iPhone auto-tracking.' : ''}',
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Import')),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return false;
+
+  final summary = await repository.importSmsLog(log.messages);
+  if (context.mounted) {
+    final parts = [
+      '${summary.added} added',
+      if (summary.duplicates > 0) '${summary.duplicates} already there',
+      if (summary.unreadable > 0) '${summary.unreadable} not recognised',
     ];
     _snack(context, parts.join(' · '));
   }

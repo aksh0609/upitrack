@@ -60,7 +60,7 @@ Android only installs an update over an existing app when both are signed with t
 
 Apple lets an app reach other people's iPhones only through TestFlight or the App Store, and both need the owner's paid Apple Developer membership. Three ways to use UPI Track on an iPhone, from easiest to most complete:
 
-- **Web app:** open [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/) in Safari → Share → **Add to Home Screen**. It syncs with your Android phone through Drive and imports statements, but a browser cannot receive SMS.
+- **Web app:** open [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/) in Safari → Share → **Add to Home Screen**. It syncs with your Android phone through Drive and imports statements. A browser cannot receive SMS, so a one-time Shortcuts automation logs each bank SMS to a text file that you import (see *iPhone auto-tracking*).
 - **Sideload the unsigned build:** every release carries `upitrack-unsigned.ipa` (every push to `main` also leaves one as the **upitrack-ipa-unsigned** artifact on the Actions run). Install it with [AltStore](https://altstore.io) or [Sideloadly](https://sideloadly.io) from a Mac or PC, signing with your own Apple ID. A free Apple ID keeps a sideloaded app for 7 days and allows 3 at a time; the same tool re-signs it. The Shortcuts automation below works on a sideloaded build.
 - **TestFlight:** once the owner has set it up (next section), the TestFlight app installs UPI Track from the owner's link and delivers updates. The in-app Update card is Android-only.
 
@@ -109,21 +109,25 @@ A free Apple ID can install the app on your own iPhone this way (it expires afte
 
 ## iPhone auto-tracking
 
-iOS doesn't let apps read SMS, but the Shortcuts app can react to incoming messages. The app ships a Shortcuts action called **Log Bank SMS**. The in-app guide (menu → iPhone auto-tracking) walks the user through creating the automation:
+iOS doesn't let apps read SMS, but the Shortcuts app can react to incoming messages. The in-app guide (menu → iPhone auto-tracking) walks the user through creating the automation. Both routes start the same way:
 
 1. Shortcuts → Automation → **+** → **Message**
 2. Message Contains: `Rs` (and a second automation for `INR` if needed)
 3. **Run Immediately**, notifications off
-4. Add action **UPI Track → Log Bank SMS**, set Message to **Shortcut Input**
 
-The action saves the message to the app's private folder; the app parses it with the same parser as Android the next time it opens. It only covers messages that arrive after setup, so statement import fills in the past. Needs iOS 17+ for automations that run without a confirmation tap; the app itself needs iOS 16+.
+**Native app** (sideloaded or TestFlight): add the action **UPI Track → Log Bank SMS** and set Message to **Shortcut Input**. The action saves the message to the app's private folder (`ios/Runner/BankSmsIntent.swift`); the app parses it with the same parser as Android the next time it opens.
+
+**Web app** (the free route, no Apple account): add the action **Append to Text File**, file path `UPI Track/sms-log.txt` in iCloud Drive, and put two variables in its text: **Current Date** formatted as ISO 8601 with time, a space, then **Shortcut Input**. Every bank SMS lands in that file as a line like `2026-10-11T09:15:30+05:30 Sent Rs.250.00 From HDFC Bank…`. In the web app, menu → **Import file** → pick `sms-log.txt` (Browse → iCloud Drive → Shortcuts → UPI Track). Messages already imported are skipped by UPI reference, or by a hash of their time and text, so the same growing file can be imported any number of times (`lib/parser/sms_log.dart`).
+
+Both routes only cover messages that arrive after setup, so statement import fills in the past. Needs iOS 17+ for automations that run without a confirmation tap; the native app needs iOS 16+.
 
 ## Statement import
 
-Menu → **Import statement**, then pick a file.
+Menu → **Import file**, then pick a file.
 
 - **PDF:** bank statements and PhonePe statements. Locked PDFs ask for the password (usually customer ID or date of birth; the bank's email explains the format).
 - **CSV:** net banking downloads (HDFC, SBI and others with Date / Narration / Withdrawal / Deposit columns) and Paytm exports.
+- **TXT:** the SMS log written by the iPhone Shortcuts automation (above).
 - Excel files: open them and save as CSV first.
 
 How rows are read: each transaction starts on a line with a date. Debit or credit is worked out from how the running balance changes (so it works whether the statement is oldest-first or newest-first), falling back to DR/CR or DEBIT/CREDIT labels. The payee is taken from the narration, e.g. `UPI-SWIGGY-SWIGGY.STORES@AXB-…` → `SWIGGY`.
@@ -172,6 +176,7 @@ Manual entry ──────────────────────�
 | `lib/data/db.dart` | SQLite tables: `txns`, `rules` (payee → category), `meta`. |
 | `lib/data/statement_reader.dart` | Opens PDFs (with password) and CSVs. |
 | `lib/data/shortcut_inbox.dart` | Reads messages saved by the iPhone Shortcuts action. |
+| `lib/parser/sms_log.dart` | Reads the SMS text log the Shortcuts automation appends to (web app route). |
 | `android/.../MainActivity.kt` | Reads `content://sms/inbox` on a background thread. |
 | `ios/Runner/BankSmsIntent.swift` | The "Log Bank SMS" Shortcuts action. |
 | `lib/screens/` | Dashboard, details, manual entry, import flow, iPhone guide. |
