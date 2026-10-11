@@ -68,20 +68,24 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate missing platform files
-        run: flutter create --platforms=ios --org com.akshay --project-name upitrack .
-
-      - name: Add the Shortcuts action to the Xcode project
-        run: |
-          gem list -i xcodeproj > /dev/null || sudo gem install xcodeproj --no-document
-          ruby scripts/setup_ios.rb
-
       - run: flutter pub get
 
-      # Compiles the app without signing. Installing on a phone needs your
-      # own Apple signing (see README).
+      # Compiles the app without signing; the Release workflow signs it for
+      # TestFlight when the Apple secrets exist (see README).
       - name: Build iOS (unsigned)
         run: flutter build ios --release --no-codesign
+
+      # Sideloadable with the user's own Apple ID (README → Get it on iPhone).
+      - name: Package the unsigned IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          (cd build/ios/ipa && zip -qry ../upitrack-unsigned.ipa Payload)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upitrack-ipa-unsigned
+          path: build/ios/upitrack-unsigned.ipa
 
   web:
     name: Web build

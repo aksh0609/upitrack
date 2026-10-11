@@ -9,3 +9,9 @@
 // ignore: unnecessary_nullable_for_final_variable_declarations
 const String? kGoogleServerClientId =
     '58884319880-fnkuorieg0qn8j4d7mrnjfobq3dpi6b6.apps.googleusercontent.com';
+
+/// The OAuth **iOS** client id for bundle id `com.akshay.upitrack` from the
+/// same Google Cloud project (README → Owner setup). Its reversed form also
+/// goes into ios/Runner/Info.plist as a URL scheme. Null = sign-in on an
+/// iPhone shows "not configured".
+const String? kGoogleIosClientId = null;

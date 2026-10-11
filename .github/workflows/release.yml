@@ -1,8 +1,14 @@
 name: Release
 
 # Tag a commit `vX.Y.Z` (matching `version:` in pubspec.yaml) and push the
-# tag: this builds the APK and attaches it to a GitHub Release. The app's
-# update banner reads that release.
+# tag: this builds the APK and the unsigned iPhone build, attaches both to a
+# GitHub Release and, when the Apple secrets exist, uploads a signed build to
+# TestFlight. The Android app's update card reads that release.
+#
+# Use a plain tag (`git tag vX.Y.Z`), not an annotated one: GitHub dates a
+# release by an annotated tag's own timestamp, which is later than the
+# commit time stamped into the APK as BUILD_TIME, so the installed app
+# would offer the release to itself as an update.
 on:
   push:
     tags: ['v*']
@@ -58,3 +64,65 @@ jobs:
         with:
           files: build/app/outputs/flutter-apk/app-release.apk
           generate_release_notes: true
+
+  ios:
+    name: Release iPhone build
+    needs: apk
+    runs-on: macos-latest
+    env:
+      HAS_APPLE: ${{ secrets.ASC_KEY_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build iOS (unsigned)
+        run: flutter build ios --release --no-codesign
+
+      # Sideloadable with the user's own Apple ID (README → Get it on iPhone).
+      - name: Package the unsigned IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          (cd build/ios/ipa && zip -qry ../upitrack-unsigned.ipa Payload)
+
+      - name: Attach the IPA to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" build/ios/upitrack-unsigned.ipa --clobber
+
+      # Xcode's cloud signing with an App Store Connect API key: no certificates
+      # or profiles to keep. The four secrets are described in the README.
+      - name: Sign and upload to TestFlight (skipped when the Apple secrets are absent)
+        if: env.HAS_APPLE == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          key="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$key"
+          auth=(-allowProvisioningUpdates -authenticationKeyPath "$key"
+                -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/ios/Runner.xcarchive \
+            archive DEVELOPMENT_TEAM="$APPLE_TEAM_ID" "${auth[@]}"
+          cat > build/ios/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath build/ios/Runner.xcarchive \
+            -exportOptionsPlist build/ios/ExportOptions.plist -exportPath build/ios/export "${auth[@]}"
