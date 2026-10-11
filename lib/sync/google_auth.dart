@@ -75,6 +75,18 @@ class GoogleAuth implements SyncAuth {
         };
         onAccountChanged?.call();
       });
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // The iOS plugin wants its own client id (an iOS OAuth client in the
+      // same project) and the matching URL scheme in ios/Runner/Info.plist.
+      final iosId = kGoogleIosClientId;
+      if (iosId == null) {
+        throw StateError(
+            'Google sign-in on iPhone is not configured: set kGoogleIosClientId '
+            'in lib/sync/oauth_ids.dart and its URL scheme in '
+            'ios/Runner/Info.plist (README → Owner setup).');
+      }
+      await GoogleSignIn.instance
+          .initialize(clientId: iosId, serverClientId: id);
     } else {
       await GoogleSignIn.instance.initialize(serverClientId: id);
     }
@@ -101,8 +113,8 @@ class GoogleAuth implements SyncAuth {
         throw StateError(
             'Sign-in did not complete (${e.description ?? 'cancelled'}). '
             'If you did not cancel it yourself, check the OAuth client in '
-            'Google Cloud: package name and SHA-1 on Android, JavaScript '
-            'origins on the web.');
+            'Google Cloud: package name and SHA-1 on Android, bundle id and '
+            'URL scheme on iPhone, JavaScript origins on the web.');
       }
       rethrow;
     }
