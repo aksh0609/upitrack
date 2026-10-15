@@ -15,6 +15,7 @@ import 'sync/drive_sync_store.dart';
 import 'sync/google_auth.dart';
 import 'sync/sync_controller.dart';
 import 'sync/sync_keys.dart';
+import 'theme.dart';
 import 'util/update_check.dart';
 
 /// Commit time of this build, stamped by CI with
@@ -64,19 +65,13 @@ class UpiTrackApp extends StatelessWidget {
   final UpdateChecker? updateChecker;
   final SyncController? syncController;
 
-  static const Color _seed = Color(0xFF0F766E);
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'UPI Track',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: _seed, useMaterial3: true),
-      darkTheme: ThemeData(
-        colorSchemeSeed: _seed,
-        brightness: Brightness.dark,
-        useMaterial3: true,
-      ),
+      theme: buildTheme(Brightness.light),
+      darkTheme: buildTheme(Brightness.dark),
       home: HomeScreen(
         repository: repository,
         updateChecker: updateChecker,

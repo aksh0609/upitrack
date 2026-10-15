@@ -32,7 +32,7 @@ class SmsLog {
 
     void flush() {
       final s = body.toString().trim();
-      if (date != null && s.isNotEmpty) messages.add(_message(date!, s));
+      if (date != null && s.isNotEmpty) messages.add(_message(date, s));
     }
 
     for (final raw in text.split('\n')) {
