@@ -28,7 +28,7 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsNWidgets(2));
   });
 
-  testWidgets('TxnTile shows a Hide button only when onHide is given',
+  testWidgets('TxnTile can be swiped away only when onHide is given',
       (tester) async {
     final txn = Txn(
       key: 'k',
@@ -40,17 +40,31 @@ void main() {
       time: DateTime(2026, 10, 3, 9),
     );
     var hidden = 0;
+    var shown = true;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: Column(children: [
-          TxnTile(txn: txn, onTap: () {}),
-          TxnTile(txn: txn, onTap: () {}, onHide: () => hidden++),
-        ]),
+        body: StatefulBuilder(
+          builder: (context, setState) => Column(children: [
+            TxnTile(txn: txn, onTap: () {}),
+            if (shown)
+              TxnTile(
+                  txn: txn,
+                  onTap: () {},
+                  onHide: () => setState(() {
+                        hidden++;
+                        shown = false;
+                      })),
+          ]),
+        ),
       ),
     ));
-    expect(find.byTooltip('Hide'), findsOneWidget);
-    await tester.tap(find.byTooltip('Hide'));
+    expect(find.byType(Dismissible), findsOneWidget);
+    expect(tester.widget<Text>(find.text('₹250').first).semanticsLabel,
+        'Paid ₹250');
+    await tester.drag(find.byType(Dismissible), const Offset(-500, 0));
+    await tester.pumpAndSettle();
     expect(hidden, 1);
+    expect(find.byType(Dismissible), findsNothing);
   });
 
   testWidgets('MerchantBars shows limited rows and reports taps',

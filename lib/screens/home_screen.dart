@@ -63,8 +63,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _syncing = false;
   bool _upiOnly = false;
   Who _who = Who.all;
-  bool _searching = false;
+
+  /// 0 = Overview, 1 = Payments.
+  int _tab = 0;
   final TextEditingController _search = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   int _shortcutCount = 0;
   int _unparsedCount = 0;
   List<AccountRef> _accounts = const [];
@@ -132,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _search.dispose();
+    _searchFocus.dispose();
     widget.syncController?.removeListener(_onSyncChanged);
     super.dispose();
   }
@@ -249,10 +253,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ));
   }
 
-  void _toggleSearch() {
+  /// Search lives on the Payments tab; the app-bar button takes you there.
+  void _openSearch() {
+    setState(() => _tab = 1);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _searchFocus.requestFocus());
+  }
+
+  void _clearFilters() {
+    _search.clear();
     setState(() {
-      _searching = !_searching;
-      if (!_searching) _search.clear();
+      _who = Who.all;
+      _account = null;
+      _upiOnly = false;
     });
   }
 
@@ -267,6 +280,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _hideTxn(Txn t) async {
+    // A swiped-away row must leave the list in this frame.
+    setState(() => _txns = _txns.where((x) => x.key != t.key).toList());
     await widget.repository.hide(t);
     await _load();
     _snack(
@@ -353,46 +368,47 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (added == true) await _load();
   }
 
+  /// Shown when the month has nothing to list, with the ways to fix that.
+  String get _emptyMessage {
+    final hasSource = _access == _Access.granted ||
+        ((_access == _Access.iphone || _isIphoneWeb) && _shortcutCount > 0);
+    if (hasSource) {
+      return _isCurrentMonth
+          ? 'No payments yet this month.'
+          : 'No payments in ${DateFormat('MMMM y').format(_month)}.';
+    }
+    if (kIsWeb) {
+      return 'Sync with Google Drive to see your payments here, '
+          'or import a statement.';
+    }
+    if (_isIOS) return 'Set up auto-tracking or import a statement.';
+    return 'Allow SMS access to track payments, or import a statement.';
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Filters shape both tabs; search narrows only the Payments list.
     final visible = _txns
         .where((t) => !_upiOnly || t.channel == 'UPI')
         .where((t) => matchesWho(t, _who))
         .where((t) =>
             _account == null ||
             (t.bank == _account!.bank && t.account == _account!.last4))
-        .where((t) => matchesSearch(t, _search.text))
         .toList();
     final summary = MonthSummary.from(visible);
-    final text = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: _searching
-            ? TextField(
-                controller: _search,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Search payee or merchant',
-                  border: InputBorder.none,
-                  suffixIcon: _search.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: _search.clear,
-                        ),
-                ),
-              )
-            : const Text('UPI Track'),
+        title: const Text('UPI Track'),
         actions: [
           IconButton(
-            tooltip: _searching ? 'Close search' : 'Search',
-            icon: Icon(_searching ? Icons.search_off : Icons.search),
-            onPressed: _toggleSearch,
+            tooltip: 'Search payments',
+            icon: const Icon(Icons.search),
+            onPressed: _openSearch,
           ),
           if (_syncing)
             const Padding(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(14),
               child: SizedBox(
                   width: 20,
                   height: 20,
@@ -405,6 +421,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               onPressed: _sync,
             ),
           PopupMenuButton<String>(
+            tooltip: 'More',
             onSelected: (v) {
               if (v == 'import') _importStatement();
               if (v == 'iphone') _openIphoneSetup();
@@ -434,6 +451,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: ListTile(
                     leading: Icon(Icons.cloud_sync_outlined),
                     title: Text('Sync'),
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
               if (_access == _Access.iphone || _isIphoneWeb)
@@ -454,183 +472,368 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         icon: const Icon(Icons.add),
         label: const Text('Add'),
       ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.insights_outlined),
+            selectedIcon: Icon(Icons.insights),
+            label: 'Overview',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: 'Payments',
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _sync,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-          children: [
-            if (_update != null)
-              _UpdateCard(
-                info: _update!,
-                progress: _updateProgress,
-                onInstall: _installUpdate,
-                onDismiss: _dismissUpdate,
-              ),
-            if (_access == _Access.denied ||
-                _access == _Access.permanentlyDenied)
-              _PermissionCard(
-                permanentlyDenied: _access == _Access.permanentlyDenied,
-                onPressed: _requestAccess,
-              ),
-            if ((_access == _Access.iphone || _isIphoneWeb) &&
-                _shortcutCount == 0)
-              _IphoneCard(
-                  onSetup: _openIphoneSetup, onImport: _importStatement),
-            if (_access == _Access.web &&
-                widget.syncController != null &&
-                widget.syncController!.state != SyncState.ready)
-              _WebSyncCard(onSetup: _openSettings),
-            if (_unparsedCount > 0)
-              _UnparsedCard(count: _unparsedCount, onTap: _openUnparsed),
-            _MonthSwitcher(
-              month: _month,
-              canGoForward: !_isCurrentMonth,
-              onChanged: _changeMonth,
-            ),
-            if (_accounts.length >= 2)
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    ChoiceChip(
-                      label: const Text('All'),
-                      selected: _account == null,
-                      onSelected: (_) => setState(() => _account = null),
-                    ),
-                    for (final a in _accounts) ...[
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: Text(accountLabel(a)),
-                        selected: _account == a,
-                        onSelected: (_) => setState(() => _account = a),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  for (final w in Who.values) ...[
-                    if (w != Who.all) const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: Text(w.label),
-                      selected: _who == w,
-                      onSelected: (_) => setState(() => _who = w),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            SummaryCard(summary: summary, showToday: _isCurrentMonth),
-            if (widget.syncController != null)
-              ListenableBuilder(
-                listenable: widget.syncController!,
-                builder: (context, _) {
-                  final s = widget.syncController!;
-                  final attention = s.state == SyncState.needsPassphrase &&
-                      s.lastError != null;
-                  if (s.state != SyncState.ready && !attention) {
-                    return const SizedBox.shrink();
-                  }
-                  final text = attention
-                      ? 'Sync needs attention'
-                      : s.syncing
-                          ? 'Syncing…'
-                          : s.lastOk == null
-                              ? 'Not synced yet'
-                              : 'Last synced ${DateFormat('d MMM, HH:mm').format(s.lastOk!)}';
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Row(
-                      children: [
-                        Icon(
-                            s.lastError == null && !attention
-                                ? Icons.cloud_done_outlined
-                                : Icons.cloud_off_outlined,
-                            size: 16,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant),
-                        const SizedBox(width: 6),
-                        Text(text,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant)),
-                        if (s.lastError != null)
-                          IconButton(
-                            iconSize: 16,
-                            tooltip: s.lastError,
-                            icon: const Icon(Icons.info_outline),
-                            onPressed: _openSettings,
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            if (summary.byCategory.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Text('Where it went', style: text.titleMedium),
-              const SizedBox(height: 8),
-              CategoryBars(totals: summary.byCategory),
-            ],
-            if (summary.byMerchant.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                      child: Text('Top merchants', style: text.titleMedium)),
-                  if (summary.byMerchant.length > 5)
-                    TextButton(
-                      onPressed: () => _openMerchants(summary),
-                      child: const Text('See all'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              MerchantBars(
-                totals: summary.byMerchant,
-                limit: 5,
-                onTap: _openMerchant,
-              ),
-            ],
-            const SizedBox(height: 24),
-            Row(
+        child: Center(
+          // Phones fill the width; the web app on a laptop stays readable.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: ListView(
+              key: PageStorageKey<int>(_tab),
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
               children: [
-                Expanded(child: Text('Transactions', style: text.titleMedium)),
-                FilterChip(
-                  label: const Text('UPI only'),
-                  selected: _upiOnly,
-                  onSelected: (v) => setState(() => _upiOnly = v),
+                if (_tab == 0) ..._notices(),
+                _MonthSwitcher(
+                  month: _month,
+                  canGoForward: !_isCurrentMonth,
+                  onChanged: _changeMonth,
                 ),
+                _Filters(
+                  who: _who,
+                  onWho: (w) => setState(() => _who = w),
+                  accounts: _accounts,
+                  account: _account,
+                  onAccount: (a) => setState(() => _account = a),
+                  upiOnly: _upiOnly,
+                  onUpiOnly: (v) => setState(() => _upiOnly = v),
+                ),
+                const SizedBox(height: 12),
+                if (_tab == 0)
+                  ..._overview(context, summary, visible)
+                else
+                  ..._payments(context, visible),
               ],
             ),
-            const SizedBox(height: 4),
-            if (visible.isEmpty &&
-                (_search.text.trim().isNotEmpty || _who != Who.all))
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 40),
-                child: Text('No payments match.', textAlign: TextAlign.center),
-              )
-            else if (visible.isEmpty)
-              _EmptyState(
-                  waitingForAccess: _access != _Access.granted &&
-                      !((_access == _Access.iphone || _isIphoneWeb) &&
-                          _shortcutCount > 0))
-            else
-              ...txnsGroupedByDay(context, visible,
-                  onTap: _openTxn, onHide: _hideTxn),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Cards that need the user: update, permission, set-up, unread SMS.
+  List<Widget> _notices() => [
+        if (_update != null)
+          _UpdateCard(
+            info: _update!,
+            progress: _updateProgress,
+            onInstall: _installUpdate,
+            onDismiss: _dismissUpdate,
+          ),
+        if (_access == _Access.denied || _access == _Access.permanentlyDenied)
+          _PermissionCard(
+            permanentlyDenied: _access == _Access.permanentlyDenied,
+            onPressed: _requestAccess,
+          ),
+        if ((_access == _Access.iphone || _isIphoneWeb) && _shortcutCount == 0)
+          _IphoneCard(onSetup: _openIphoneSetup, onImport: _importStatement),
+        if (_access == _Access.web &&
+            widget.syncController != null &&
+            widget.syncController!.state != SyncState.ready)
+          _WebSyncCard(onSetup: _openSettings),
+        if (_unparsedCount > 0)
+          _UnparsedCard(count: _unparsedCount, onTap: _openUnparsed),
+      ];
+
+  bool get _filtering => _who != Who.all || _account != null || _upiOnly;
+
+  Widget _noMatch() => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(
+          children: [
+            const Text('No payments match.', textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            TextButton(
+                onPressed: _clearFilters, child: const Text('Clear filters')),
           ],
         ),
+      );
+
+  List<Widget> _overview(
+      BuildContext context, MonthSummary summary, List<Txn> visible) {
+    return [
+      SummaryCard(summary: summary, month: _month, showToday: _isCurrentMonth),
+      if (widget.syncController != null)
+        _SyncLine(sync: widget.syncController!, onOpen: _openSettings),
+      const SizedBox(height: 12),
+      if (visible.isEmpty)
+        _filtering
+            ? _noMatch()
+            : _EmptyState(
+                message: _emptyMessage,
+                onImport: _importStatement,
+                onAdd: _addManual,
+              )
+      else ...[
+        if (summary.byCategory.isNotEmpty)
+          _Section(
+            title: 'Where it went',
+            child: CategoryBars(totals: summary.byCategory),
+          ),
+        if (summary.byMerchant.isNotEmpty)
+          _Section(
+            title: 'Top merchants',
+            action: summary.byMerchant.length > 5 ? 'See all' : null,
+            onAction: () => _openMerchants(summary),
+            child: MerchantBars(
+              totals: summary.byMerchant,
+              limit: 5,
+              onTap: _openMerchant,
+            ),
+          ),
+        _Section(
+          title: 'Recent payments',
+          action: visible.length > 5 ? 'See all' : null,
+          onAction: () => setState(() => _tab = 1),
+          child: Column(
+            children: txnsGroupedByDay(context, visible.take(5).toList(),
+                onTap: _openTxn, onHide: _hideTxn),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _payments(BuildContext context, List<Txn> visible) {
+    final listed =
+        visible.where((t) => matchesSearch(t, _search.text)).toList();
+    final searching = _search.text.trim().isNotEmpty;
+    return [
+      TextField(
+        controller: _search,
+        focusNode: _searchFocus,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Search payee or merchant',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: searching
+              ? IconButton(
+                  tooltip: 'Clear search',
+                  icon: const Icon(Icons.close),
+                  onPressed: _search.clear,
+                )
+              : null,
+        ),
+      ),
+      if (listed.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+          child: Text(
+            listed.length == 1 ? '1 payment' : '${listed.length} payments',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+        ),
+      if (listed.isEmpty && (searching || _filtering))
+        _noMatch()
+      else if (listed.isEmpty)
+        _EmptyState(
+          message: _emptyMessage,
+          onImport: _importStatement,
+          onAdd: _addManual,
+        )
+      else
+        ...txnsGroupedByDay(context, listed, onTap: _openTxn, onHide: _hideTxn),
+      if (listed.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: Text('Swipe a payment left to hide it.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ),
+    ];
+  }
+}
+
+/// "Last synced …" under the summary; tap it when sync needs attention.
+class _SyncLine extends StatelessWidget {
+  const _SyncLine({required this.sync, required this.onOpen});
+
+  final SyncController sync;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: sync,
+      builder: (context, _) {
+        final attention =
+            sync.state == SyncState.needsPassphrase && sync.lastError != null;
+        if (sync.state != SyncState.ready && !attention) {
+          return const SizedBox.shrink();
+        }
+        final label = attention
+            ? 'Sync needs attention'
+            : sync.syncing
+                ? 'Syncing…'
+                : sync.lastOk == null
+                    ? 'Not synced yet'
+                    : 'Last synced ${DateFormat('d MMM, HH:mm').format(sync.lastOk!)}';
+        final scheme = Theme.of(context).colorScheme;
+        final ok = sync.lastError == null && !attention;
+        final color = ok ? scheme.onSurfaceVariant : scheme.error;
+        return InkWell(
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+            child: Row(
+              children: [
+                Icon(ok ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+                    size: 16, color: color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(label,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: color)),
+                ),
+                if (!ok) Icon(Icons.chevron_right, size: 18, color: color),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A titled card on the Overview tab.
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.title,
+    required this.child,
+    this.action,
+    this.onAction,
+  });
+
+  final String title;
+  final Widget child;
+  final String? action;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                  ),
+                  if (action != null)
+                    TextButton(onPressed: onAction, child: Text(action!)),
+                ],
+              ),
+            ),
+            Padding(padding: const EdgeInsets.only(right: 8), child: child),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Who, which account and UPI-only, in one scrollable row of chips.
+class _Filters extends StatelessWidget {
+  const _Filters({
+    required this.who,
+    required this.onWho,
+    required this.accounts,
+    required this.account,
+    required this.onAccount,
+    required this.upiOnly,
+    required this.onUpiOnly,
+  });
+
+  final Who who;
+  final ValueChanged<Who> onWho;
+  final List<AccountRef> accounts;
+  final AccountRef? account;
+  final ValueChanged<AccountRef?> onAccount;
+  final bool upiOnly;
+  final ValueChanged<bool> onUpiOnly;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      // Chips slide under the list's side padding instead of being cut off.
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          for (final w in Who.values) ...[
+            ChoiceChip(
+              label: Text(w.label),
+              selected: who == w,
+              onSelected: (_) => onWho(w),
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (accounts.length >= 2) ...[
+            // -1 = all accounts; PopupMenuButton treats a null pick as cancel.
+            PopupMenuButton<int>(
+              tooltip: 'Choose account',
+              onSelected: (i) => onAccount(i < 0 ? null : accounts[i]),
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: -1, child: Text('All accounts')),
+                for (var i = 0; i < accounts.length; i++)
+                  PopupMenuItem(
+                      value: i, child: Text(accountLabel(accounts[i]))),
+              ],
+              child: Chip(
+                backgroundColor:
+                    account == null ? null : scheme.secondaryContainer,
+                avatar: const Icon(Icons.account_balance_outlined, size: 18),
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(account == null
+                        ? 'All accounts'
+                        : accountLabel(account!)),
+                    const Icon(Icons.arrow_drop_down, size: 18),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          FilterChip(
+            label: const Text('UPI only'),
+            selected: upiOnly,
+            onSelected: onUpiOnly,
+          ),
+        ],
       ),
     );
   }
@@ -644,11 +847,17 @@ class _MonthSwitcher extends StatelessWidget {
   });
 
   final DateTime month;
+
+  /// False on the current month: there is nothing ahead to show.
   final bool canGoForward;
+
+  /// Months to move by; a big jump returns to the current month.
   final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final back = (now.year - month.year) * 12 + now.month - month.month;
     return Row(
       children: [
         IconButton(
@@ -657,10 +866,24 @@ class _MonthSwitcher extends StatelessWidget {
           onPressed: () => onChanged(-1),
         ),
         Expanded(
-          child: Text(
-            DateFormat('MMMM y').format(month),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
+          child: Column(
+            children: [
+              Text(
+                DateFormat('MMMM y').format(month),
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              if (canGoForward)
+                TextButton(
+                  style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact),
+                  onPressed: () => onChanged(back),
+                  child: const Text('Back to this month'),
+                ),
+            ],
           ),
         ),
         IconButton(
@@ -826,28 +1049,50 @@ class _IphoneCard extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.waitingForAccess});
+  const _EmptyState({
+    required this.message,
+    required this.onImport,
+    required this.onAdd,
+  });
 
-  final bool waitingForAccess;
+  final String message;
+  final VoidCallback onImport;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 8),
       child: Column(
         children: [
-          Icon(Icons.receipt_long_outlined,
-              size: 48, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 12),
-          Text(
-            waitingForAccess
-                ? (kIsWeb
-                    ? 'Sync with Google Drive to see your payments here, import a statement, or tap Add.'
-                    : _isIOS
-                        ? 'Set up auto-tracking or import a statement, or tap Add.'
-                        : 'Allow SMS access, import a statement, or tap Add.')
-                : 'No transactions this month.',
-            textAlign: TextAlign.center,
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: scheme.secondaryContainer,
+            child: Icon(Icons.receipt_long_outlined,
+                size: 32, color: scheme.onSecondaryContainer),
+          ),
+          const SizedBox(height: 16),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge),
+          const SizedBox(height: 16),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onImport,
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Import file'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: onAdd,
+                icon: const Icon(Icons.add),
+                label: const Text('Add payment'),
+              ),
+            ],
           ),
         ],
       ),

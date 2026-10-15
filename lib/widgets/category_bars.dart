@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/category.dart';
+import '../theme.dart';
 import '../util/format.dart';
 
 /// Horizontal bars showing spending per category, largest first.
@@ -12,7 +13,9 @@ class CategoryBars extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final max = totals.values.fold<int>(0, (a, b) => b > a ? b : a);
+    final sum = totals.values.fold<int>(0, (a, b) => a + b);
     final text = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Column(
       children: [
@@ -24,7 +27,7 @@ class CategoryBars extends StatelessWidget {
               return Row(
                 children: [
                   CircleAvatar(
-                    radius: 16,
+                    radius: 18,
                     backgroundColor: cat.color.withValues(alpha: 0.15),
                     child: Icon(cat.icon, size: 18, color: cat.color),
                   ),
@@ -37,9 +40,14 @@ class CategoryBars extends StatelessWidget {
                           children: [
                             Expanded(
                                 child: Text(e.key, style: text.bodyMedium)),
+                            if (sum > 0)
+                              Text('${(e.value * 100 / sum).round()}%  ',
+                                  style: text.bodySmall?.copyWith(
+                                      color: muted, fontFeatures: kTabular)),
                             Text(formatPaise(e.value),
-                                style: text.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600)),
+                                style: text.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontFeatures: kTabular)),
                           ],
                         ),
                         const SizedBox(height: 6),

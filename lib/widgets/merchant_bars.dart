@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
 import '../util/format.dart';
 
 /// Rows with bars showing spending per merchant, largest first.
@@ -37,10 +38,15 @@ class MerchantBars extends StatelessWidget {
               child: Row(
                 children: [
                   CircleAvatar(
-                    radius: 16,
+                    radius: 18,
                     backgroundColor: scheme.secondaryContainer,
-                    child: Icon(Icons.storefront_outlined,
-                        size: 18, color: scheme.onSecondaryContainer),
+                    child: Text(
+                      e.key.isEmpty
+                          ? '?'
+                          : e.key.characters.first.toUpperCase(),
+                      style: text.titleSmall
+                          ?.copyWith(color: scheme.onSecondaryContainer),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -56,8 +62,9 @@ class MerchantBars extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis),
                             ),
                             Text(formatPaise(e.value.totalPaise),
-                                style: text.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600)),
+                                style: text.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontFeatures: kTabular)),
                           ],
                         ),
                         Text(
