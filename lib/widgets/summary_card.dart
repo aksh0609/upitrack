@@ -36,8 +36,7 @@ class SummaryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color:
-                const Color(0xFF6D28D9).withValues(alpha: dark ? 0.40 : 0.28),
+            color: kGlow.withValues(alpha: dark ? 0.45 : 0.30),
             blurRadius: 32,
             offset: const Offset(0, 14),
           ),
@@ -49,6 +48,8 @@ class SummaryCard extends StatelessWidget {
           children: [
             const Positioned(right: -50, top: -60, child: _Ring(size: 190)),
             const Positioned(right: 50, bottom: -80, child: _Ring(size: 150)),
+            // A band of light sweeps across once per month shown.
+            Positioned.fill(child: _Sheen(key: ValueKey(month))),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
               child: Column(
@@ -62,23 +63,13 @@ class SummaryCard extends StatelessWidget {
                         ?.copyWith(color: on.withValues(alpha: 0.85)),
                   ),
                   const SizedBox(height: 4),
-                  // Counts up to the new total when it changes.
-                  TweenAnimationBuilder<double>(
-                    tween: Tween(end: spent.toDouble()),
-                    duration: const Duration(milliseconds: 900),
-                    curve: Curves.easeOutCubic,
-                    builder: (context, v, _) => FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        // Whole rupees while counting, so no paise flicker.
-                        formatPaise(
-                            v == spent ? spent : (v / 100).round() * 100),
-                        style: text.displaySmall?.copyWith(
-                          color: on,
-                          fontFeatures: kTabular,
-                        ),
-                      ),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: _CountUp(
+                      spent,
+                      style: text.displaySmall
+                          ?.copyWith(color: on, fontFeatures: kTabular),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -94,14 +85,13 @@ class SummaryCard extends StatelessWidget {
                       children: [
                         _Stat(
                             label: 'Received',
-                            value: '+${formatPaise(summary.receivedPaise)}'),
+                            paise: summary.receivedPaise,
+                            prefix: '+'),
                         if (showToday)
-                          _Stat(
-                              label: 'Today',
-                              value: formatPaise(summary.todaySpentPaise)),
+                          _Stat(label: 'Today', paise: summary.todaySpentPaise),
                         _Stat(
                           label: net < 0 ? 'Net out' : 'Net in',
-                          value: formatPaise(net.abs()),
+                          paise: net.abs(),
                         ),
                       ],
                     ),
@@ -134,10 +124,11 @@ class _Ring extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
+  const _Stat({required this.label, required this.paise, this.prefix = ''});
 
   final String label;
-  final String value;
+  final int paise;
+  final String prefix;
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +144,8 @@ class _Stat extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(value,
+            child: _CountUp(paise,
+                prefix: prefix,
                 style: text.titleMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -163,4 +155,54 @@ class _Stat extends StatelessWidget {
       ),
     );
   }
+}
+
+/// An amount that counts from its old value to a new one.
+class _CountUp extends StatelessWidget {
+  const _CountUp(this.paise, {this.prefix = '', this.style});
+
+  final int paise;
+  final String prefix;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween(end: paise.toDouble()),
+        duration: const Duration(milliseconds: 900),
+        curve: Curves.easeOutCubic,
+        builder: (context, v, _) => Text(
+          // Whole rupees while counting, so no paise flicker.
+          prefix + formatPaise(v == paise ? paise : (v / 100).round() * 100),
+          style: style,
+        ),
+      );
+}
+
+/// A soft diagonal band of light that crosses the card once.
+class _Sheen extends StatelessWidget {
+  const _Sheen({super.key});
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 1400),
+          curve: Curves.easeInOutCubic,
+          builder: (context, t, _) => t == 1
+              ? const SizedBox.shrink()
+              : DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment(4 * t - 3, -1),
+                      end: Alignment(4 * t - 1, 1),
+                      colors: [
+                        Colors.white.withValues(alpha: 0),
+                        Colors.white.withValues(alpha: 0.22),
+                        Colors.white.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
+      );
 }

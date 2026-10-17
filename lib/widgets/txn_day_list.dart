@@ -4,6 +4,7 @@ import '../models/txn.dart';
 import '../parser/categorizer.dart';
 import '../theme.dart';
 import '../util/format.dart';
+import 'appear.dart';
 import 'txn_tile.dart';
 
 /// [txns] (newest first) as day headers and tiles, for use inside a ListView.
@@ -25,6 +26,7 @@ List<Widget> txnsGroupedByDay(
 
   final widgets = <Widget>[];
   DateTime? currentDay;
+  var n = 0;
   for (final t in txns) {
     final day = DateTime(t.time.year, t.time.month, t.time.day);
     if (day != currentDay) {
@@ -46,12 +48,18 @@ List<Widget> txnsGroupedByDay(
         ),
       ));
     }
-    widgets.add(TxnTile(
+    final tile = TxnTile(
       key: ValueKey(t.key),
       txn: t,
       onTap: () => onTap(t),
       onHide: onHide == null ? null : () => onHide(t),
-    ));
+    );
+    // The first rows slide in one by one; the rest of a long list just shows.
+    // ponytail: fixed cap of 12, keeps a long list from animating hundreds.
+    widgets.add(n < 12
+        ? Appear(key: ValueKey('in:${t.key}'), index: n, child: tile)
+        : tile);
+    n++;
   }
   return widgets;
 }
