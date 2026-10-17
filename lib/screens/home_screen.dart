@@ -475,7 +475,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF6D28D9).withValues(alpha: 0.35),
+              color: kGlow.withValues(alpha: 0.4),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -927,13 +927,23 @@ class _MonthSwitcher extends StatelessWidget {
         Expanded(
           child: Column(
             children: [
-              Text(
-                DateFormat('MMMM y').format(month),
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                      scale: Tween(begin: 0.9, end: 1.0).animate(animation),
+                      child: child),
+                ),
+                child: Text(
+                  DateFormat('MMMM y').format(month),
+                  key: ValueKey(month),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
               ),
               if (canGoForward)
                 TextButton(

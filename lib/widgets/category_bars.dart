@@ -53,11 +53,19 @@ class CategoryBars extends StatelessWidget {
                         const SizedBox(height: 6),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: max == 0 ? 0 : e.value / max,
-                            minHeight: 6,
-                            color: cat.color,
-                            backgroundColor: cat.color.withValues(alpha: 0.12),
+                          // Bars grow in, and glide when the month changes.
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(
+                                begin: 0, end: max == 0 ? 0 : e.value / max),
+                            duration: const Duration(milliseconds: 800),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, v, _) => LinearProgressIndicator(
+                              value: v,
+                              minHeight: 6,
+                              color: cat.color,
+                              backgroundColor:
+                                  cat.color.withValues(alpha: 0.12),
+                            ),
                           ),
                         ),
                       ],
