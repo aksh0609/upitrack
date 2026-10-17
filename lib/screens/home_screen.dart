@@ -16,6 +16,8 @@ import '../util/apk_installer.dart';
 import '../util/search.dart';
 import '../util/update_check.dart';
 import '../util/who.dart';
+import '../theme.dart';
+import '../widgets/appear.dart';
 import '../widgets/category_bars.dart';
 import '../widgets/merchant_bars.dart';
 import '../widgets/summary_card.dart';
@@ -399,7 +401,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('UPI Track'),
+        title: const _Brand(),
         actions: [
           IconButton(
             tooltip: 'Search payments',
@@ -467,10 +469,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addManual,
-        icon: const Icon(Icons.add),
-        label: const Text('Add'),
+      floatingActionButton: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: kBrandGradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6D28D9).withValues(alpha: 0.35),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: _addManual,
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          focusElevation: 0,
+          hoverElevation: 0,
+          highlightElevation: 0,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: const Icon(Icons.add),
+          label: const Text('Add'),
+        ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
@@ -494,32 +517,47 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // Phones fill the width; the web app on a laptop stays readable.
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
-            child: ListView(
-              key: PageStorageKey<int>(_tab),
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-              children: [
-                if (_tab == 0) ..._notices(),
-                _MonthSwitcher(
-                  month: _month,
-                  canGoForward: !_isCurrentMonth,
-                  onChanged: _changeMonth,
+            // Tabs cross-fade with a slight rise instead of snapping.
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position:
+                      Tween(begin: const Offset(0, 0.02), end: Offset.zero)
+                          .animate(animation),
+                  child: child,
                 ),
-                _Filters(
-                  who: _who,
-                  onWho: (w) => setState(() => _who = w),
-                  accounts: _accounts,
-                  account: _account,
-                  onAccount: (a) => setState(() => _account = a),
-                  upiOnly: _upiOnly,
-                  onUpiOnly: (v) => setState(() => _upiOnly = v),
-                ),
-                const SizedBox(height: 12),
-                if (_tab == 0)
-                  ..._overview(context, summary, visible)
-                else
-                  ..._payments(context, visible),
-              ],
+              ),
+              child: ListView(
+                key: PageStorageKey<int>(_tab),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+                children: [
+                  if (_tab == 0) ..._notices(),
+                  _MonthSwitcher(
+                    month: _month,
+                    canGoForward: !_isCurrentMonth,
+                    onChanged: _changeMonth,
+                  ),
+                  _Filters(
+                    who: _who,
+                    onWho: (w) => setState(() => _who = w),
+                    accounts: _accounts,
+                    account: _account,
+                    onAccount: (a) => setState(() => _account = a),
+                    upiOnly: _upiOnly,
+                    onUpiOnly: (v) => setState(() => _upiOnly = v),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_tab == 0)
+                    ..._overview(context, summary, visible)
+                  else
+                    ..._payments(context, visible),
+                ],
+              ),
             ),
           ),
         ),
@@ -568,7 +606,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Widget> _overview(
       BuildContext context, MonthSummary summary, List<Txn> visible) {
     return [
-      SummaryCard(summary: summary, month: _month, showToday: _isCurrentMonth),
+      Appear(
+        child: SummaryCard(
+            summary: summary, month: _month, showToday: _isCurrentMonth),
+      ),
       if (widget.syncController != null)
         _SyncLine(sync: widget.syncController!, onOpen: _openSettings),
       const SizedBox(height: 12),
@@ -583,11 +624,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       else ...[
         if (summary.byCategory.isNotEmpty)
           _Section(
+            index: 1,
             title: 'Where it went',
             child: CategoryBars(totals: summary.byCategory),
           ),
         if (summary.byMerchant.isNotEmpty)
           _Section(
+            index: 2,
             title: 'Top merchants',
             action: summary.byMerchant.length > 5 ? 'See all' : null,
             onAction: () => _openMerchants(summary),
@@ -598,6 +641,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
         _Section(
+          index: 3,
           title: 'Recent payments',
           action: visible.length > 5 ? 'See all' : null,
           onAction: () => setState(() => _tab = 1),
@@ -649,7 +693,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onAdd: _addManual,
         )
       else
-        ...txnsGroupedByDay(context, listed, onTap: _openTxn, onHide: _hideTxn),
+        Card(
+          margin: const EdgeInsets.only(top: 12),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Column(
+              children: txnsGroupedByDay(context, listed,
+                  onTap: _openTxn, onHide: _hideTxn),
+            ),
+          ),
+        ),
       if (listed.isNotEmpty)
         Padding(
           padding: const EdgeInsets.only(top: 16),
@@ -719,12 +772,15 @@ class _SyncLine extends StatelessWidget {
 /// A titled card on the Overview tab.
 class _Section extends StatelessWidget {
   const _Section({
+    required this.index,
     required this.title,
     required this.child,
     this.action,
     this.onAction,
   });
 
+  /// Position on the tab, so the cards arrive one after another.
+  final int index;
   final String title;
   final Widget child;
   final String? action;
@@ -732,31 +788,34 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              height: 48,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                  ),
-                  if (action != null)
-                    TextButton(onPressed: onAction, child: Text(action!)),
-                ],
+    return Appear(
+      index: index,
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700)),
+                    ),
+                    if (action != null)
+                      TextButton(onPressed: onAction, child: Text(action!)),
+                  ],
+                ),
               ),
-            ),
-            Padding(padding: const EdgeInsets.only(right: 8), child: child),
-          ],
+              Padding(padding: const EdgeInsets.only(right: 8), child: child),
+            ],
+          ),
         ),
       ),
     );
@@ -1061,16 +1120,19 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 8),
       child: Column(
         children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: scheme.secondaryContainer,
-            child: Icon(Icons.receipt_long_outlined,
-                size: 32, color: scheme.onSecondaryContainer),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              gradient: kBrandGradient,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const Icon(Icons.receipt_long_outlined,
+                size: 34, color: Colors.white),
           ),
           const SizedBox(height: 16),
           Text(message,
@@ -1178,6 +1240,32 @@ class _UpdateCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The logo mark and name in the app bar.
+class _Brand extends StatelessWidget {
+  const _Brand();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            gradient: kBrandGradient,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child:
+              const Icon(Icons.currency_rupee, size: 18, color: Colors.white),
+        ),
+        const SizedBox(width: 10),
+        const Text('UPI Track'),
+      ],
     );
   }
 }

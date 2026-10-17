@@ -81,6 +81,8 @@ Future<void> pumpHome(WidgetTester tester, AppDb db,
         () => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pump();
   }
+  // Let the total count up and the cards slide in.
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -97,7 +99,8 @@ void main() {
     expect(find.text('Recent payments'), findsOneWidget);
 
     await tester.tap(find.text('Payments'));
-    await tester.pump();
+    // Past the tab cross-fade, so the Overview list is gone.
+    await tester.pumpAndSettle();
     expect(find.text('7 payments'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'uber');
