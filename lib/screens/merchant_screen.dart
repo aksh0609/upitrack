@@ -180,7 +180,14 @@ class _MerchantScreenState extends State<MerchantScreen> {
               child: Text('No payments in the last six months.'),
             )
           else
-            ...txnsGroupedByDay(context, txns, onTap: _openTxn),
+            Card(
+              margin: const EdgeInsets.only(top: 8),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: Column(
+                    children: txnsGroupedByDay(context, txns, onTap: _openTxn)),
+              ),
+            ),
         ],
       ),
     );

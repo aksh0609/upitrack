@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
@@ -28,6 +29,10 @@ final DateTime? kBuildTime = const int.fromEnvironment('BUILD_TIME') == 0
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(['Plus Jakarta Sans'],
+        await rootBundle.loadString('assets/fonts/OFL.txt'));
+  });
   // Browser: SQLite compiled to WebAssembly, persisted in IndexedDB (spec §4.8).
   if (kIsWeb) databaseFactory = databaseFactoryFfiWeb;
   final db = await AppDb.open();
