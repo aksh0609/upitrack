@@ -13,6 +13,7 @@ import '../models/budget.dart';
 import '../models/lent.dart';
 import '../models/recurring.dart';
 import '../models/summary.dart';
+import '../models/trends.dart';
 import '../models/txn.dart';
 import '../sync/sync_controller.dart';
 import '../util/apk_installer.dart';
@@ -26,6 +27,7 @@ import '../widgets/budget_bars.dart';
 import '../widgets/category_bars.dart';
 import '../widgets/merchant_bars.dart';
 import '../widgets/summary_card.dart';
+import '../widgets/trends.dart';
 import '../widgets/txn_day_list.dart';
 import 'add_txn_sheet.dart';
 import 'budgets_screen.dart';
@@ -80,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _upiOnly = false;
   Who _who = Who.all;
 
-  /// 0 = Overview, 1 = Payments.
+  /// 0 = Overview, 1 = Payments, 2 = Trends.
   int _tab = 0;
   final TextEditingController _search = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
@@ -434,14 +436,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Filters shape both tabs; search narrows only the Payments list.
-    final visible = _txns
-        .where((t) => !_upiOnly || t.channel == 'UPI')
-        .where((t) => matchesWho(t, _who))
-        .where((t) =>
-            _account == null ||
-            (t.bank == _account!.bank && t.account == _account!.last4))
-        .toList();
+    // Filters shape every tab; search narrows only the Payments list.
+    bool keep(Txn t) =>
+        (!_upiOnly || t.channel == 'UPI') &&
+        matchesWho(t, _who) &&
+        (_account == null ||
+            (t.bank == _account!.bank && t.account == _account!.last4));
+    final visible = _txns.where(keep).toList();
     final summary = MonthSummary.from(visible);
 
     return Scaffold(
@@ -591,6 +592,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             selectedIcon: Icon(Icons.receipt_long),
             label: 'Payments',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart_outlined),
+            selectedIcon: Icon(Icons.bar_chart),
+            label: 'Trends',
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -636,8 +642,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const SizedBox(height: 12),
                   if (_tab == 0)
                     ..._overview(context, summary, visible)
+                  else if (_tab == 1)
+                    ..._payments(context, visible)
                   else
-                    ..._payments(context, visible),
+                    ..._trends(_history.where(keep).toList()),
                 ],
               ),
             ),
@@ -775,6 +783,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ];
   }
 
+  /// Month on month, the last twelve months, and the month day by day.
+  List<Widget> _trends(List<Txn> history) {
+    final prev = DateTime(_month.year, _month.month - 1);
+    return [
+      _Section(
+        index: 0,
+        title: 'Compared with ${DateFormat('MMMM').format(prev)}',
+        child: MonthChange(
+            comparison: compareMonths(history, _month), month: _month),
+      ),
+      _Section(
+        index: 1,
+        title: 'Last 12 months',
+        child: YearBars(
+          txns: history,
+          month: _month,
+          onMonth: (m) => _changeMonth(
+              (m.year - _month.year) * 12 + m.month - _month.month),
+        ),
+      ),
+      _Section(
+        index: 2,
+        title: 'Day by day',
+        child: SpendCalendar(txns: history, month: _month),
+      ),
+    ];
+  }
+
   List<Widget> _payments(BuildContext context, List<Txn> visible) {
     final listed =
         visible.where((t) => matchesSearch(t, _search.text)).toList();
@@ -908,7 +944,9 @@ class _LentSummary extends StatelessWidget {
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 4),
             onTap: onTap,
-            leading: const Icon(Icons.person_outline),
+            leading: CircleAvatar(
+              child: Text(b.name.isEmpty ? '?' : b.name[0].toUpperCase()),
+            ),
             title: Text(b.name, maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text(balanceLabel(b.balancePaise)),
             trailing: Text(formatPaise(b.balancePaise.abs()),

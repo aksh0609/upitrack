@@ -82,11 +82,14 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                       style: text.bodyMedium?.copyWith(color: muted)),
                   const SizedBox(height: 12),
                   Card(
-                    child: Column(
-                      children: [
-                        for (final r in found)
-                          RecurringTile(r: r, onTap: () => _open(r)),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Column(
+                        children: [
+                          for (final r in found)
+                            RecurringTile(r: r, onTap: () => _open(r)),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -116,6 +119,7 @@ class RecurringTile extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final due = dueLabel(r.next);
     return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       onTap: onTap,
       leading: CircleAvatar(
         backgroundColor: cat.color.withValues(alpha: 0.15),
