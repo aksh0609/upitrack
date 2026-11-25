@@ -18,6 +18,7 @@ class Txn {
     this.source = 'sms',
     this.hidden = false,
     this.editTs = 0,
+    this.note,
   });
 
   final int? id;
@@ -56,6 +57,10 @@ class Txn {
   /// row (category, hide/unhide); 0 for rows that only ever had automatic
   /// values. Sync lets the higher edit_ts win (spec §4.3).
   final int editTs;
+
+  /// The user's own words ("Rahul's birthday gift"); kept in the notes
+  /// table, not in txns, so [toMap] leaves it out.
+  final String? note;
 
   /// Statement rows usually have only a date, not a time.
   bool get hasTime =>
@@ -99,5 +104,9 @@ class Txn {
         source: m['source'] as String? ?? 'sms',
         hidden: (m['hidden'] as int? ?? 0) == 1,
         editTs: m['edit_ts'] as int? ?? 0,
+        note: switch (m['note']) {
+          final String n when n.isNotEmpty => n,
+          _ => null
+        },
       );
 }

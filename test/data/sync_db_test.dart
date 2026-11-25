@@ -168,4 +168,18 @@ void main() {
     await a.applySnapshot(old);
     expect(await a.budgets(), {'Food': 500000});
   });
+
+  test('notes come back with payments, sync, and clear', () async {
+    await a.insertAll([txn('n1')]);
+    await a.setNote('n1', 'office lunch');
+    expect((await all(a)).single.note, 'office lunch');
+
+    await b.applySnapshot(await a.snapshot());
+    expect((await all(b)).single.note, 'office lunch');
+
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await b.setNote('n1', '');
+    await a.applySnapshot(await b.snapshot());
+    expect((await all(a)).single.note, isNull);
+  });
 }

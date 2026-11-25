@@ -24,7 +24,7 @@ class AppDb {
     final db = await f.openDatabase(
       path ?? p.join(await f.getDatabasesPath(), 'upitrack.db'),
       options: OpenDatabaseOptions(
-        version: 6,
+        version: 7,
         onCreate: (db, version) async {
           await db.execute('''
           CREATE TABLE txns(
@@ -54,12 +54,14 @@ class AppDb {
               'CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
           await _createUnparsed(db);
           await _createBudgets(db);
+          await _createNotes(db);
         },
         onUpgrade: (db, from, to) async {
           if (from < 2) await _createUnparsed(db);
           if (from < 3) await _upgradeToV3(db);
           if (from < 5) await _reguessOthers(db);
           if (from < 6) await _createBudgets(db);
+          if (from < 7) await _createNotes(db);
         },
       ),
     );
@@ -81,6 +83,12 @@ class AppDb {
   /// removed budget stays as 0 so the removal syncs; `ts` decides merges.
   static Future<void> _createBudgets(Database db) => db.execute(
       'CREATE TABLE IF NOT EXISTS budgets(category TEXT PRIMARY KEY, paise INTEGER NOT NULL, ts INTEGER NOT NULL)');
+
+  /// v7: the user's note on a payment, by txn key. Its own table, so a row
+  /// from an older app's snapshot never carries an unknown column. A
+  /// cleared note stays as '' so the clearing syncs.
+  static Future<void> _createNotes(Database db) => db.execute(
+      'CREATE TABLE IF NOT EXISTS notes(key TEXT PRIMARY KEY, note TEXT NOT NULL, ts INTEGER NOT NULL)');
 
   /// v3 (spec §4.3): `edit_ts` on txns and `ts` on rules. Existing rows
   /// whose category differs from the automatic guess were set by hand, so
@@ -195,27 +203,25 @@ class AppDb {
     return added;
   }
 
-  Future<List<Txn>> between(DateTime from, DateTime to) async {
-    final rows = await _db.query(
-      'txns',
-      where: 'hidden = 0 AND ts >= ? AND ts < ?',
-      whereArgs: [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch],
-      orderBy: 'ts DESC',
-    );
+  /// Payments with their note, newest first. [where] names columns as `t.`.
+  Future<List<Txn>> _txns(String where, List<Object?> args) async {
+    final rows = await _db.rawQuery(
+        'SELECT t.*, n.note AS note FROM txns t '
+        'LEFT JOIN notes n ON n.key = t.key '
+        'WHERE $where ORDER BY t.ts DESC',
+        args);
     return rows.map(Txn.fromMap).toList();
   }
 
+  Future<List<Txn>> between(DateTime from, DateTime to) => _txns(
+      't.hidden = 0 AND t.ts >= ? AND t.ts < ?',
+      [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
+
   /// Like [between] but including hidden rows: duplicate matching must see
   /// a payment the user hid, or a statement import would add it back.
-  Future<List<Txn>> betweenIncludingHidden(DateTime from, DateTime to) async {
-    final rows = await _db.query(
-      'txns',
-      where: 'ts >= ? AND ts < ?',
-      whereArgs: [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch],
-      orderBy: 'ts DESC',
-    );
-    return rows.map(Txn.fromMap).toList();
-  }
+  Future<List<Txn>> betweenIncludingHidden(DateTime from, DateTime to) => _txns(
+      't.ts >= ? AND t.ts < ?',
+      [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
 
   /// Accounts seen in the SMS, most-used first.
   Future<List<AccountRef>> accounts() async {
@@ -267,11 +273,14 @@ class AppDb {
       });
 
   /// Everything the user hid, newest first, across all months.
-  Future<List<Txn>> hidden() async {
-    final rows =
-        await _db.query('txns', where: 'hidden = 1', orderBy: 'ts DESC');
-    return rows.map(Txn.fromMap).toList();
-  }
+  Future<List<Txn>> hidden() => _txns('t.hidden = 1', const []);
+
+  /// [note] '' clears it.
+  Future<void> setNote(String key, String note) => _db.transaction((txn) async {
+        await txn.insert('notes', {'key': key, 'note': note, 'ts': _now},
+            conflictAlgorithm: ConflictAlgorithm.replace);
+        await _markDirty(txn);
+      });
 
   Future<Map<String, String>> rules() async {
     final rows = await _db.query('rules');
@@ -340,6 +349,9 @@ class AppDb {
       budgets: [
         for (final r in await _db.query('budgets')) Map<String, Object?>.from(r)
       ],
+      notes: [
+        for (final r in await _db.query('notes')) Map<String, Object?>.from(r)
+      ],
     );
   }
 
@@ -406,6 +418,10 @@ class AppDb {
       }
       if (await _mergeNewest(txn, 'budgets', ['category', 'paise', 'ts'],
           snapshot['budgets'] as List?)) {
+        changed = true;
+      }
+      if (await _mergeNewest(
+          txn, 'notes', ['key', 'note', 'ts'], snapshot['notes'] as List?)) {
         changed = true;
       }
       if (changed) await _markDirty(txn);

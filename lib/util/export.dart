@@ -27,7 +27,8 @@ Uint8List txnsCsv(List<Txn> txns) {
       'Amount',
       'Account',
       'Type',
-      'UPI ref'
+      'UPI ref',
+      'Note',
     ],
     for (final t in txns)
       [
@@ -39,6 +40,7 @@ Uint8List txnsCsv(List<Txn> txns) {
         _text(_account(t)),
         t.channel,
         _text(t.ref ?? ''),
+        _text(t.note ?? ''),
       ],
   ];
   final csv = rows.map((r) => r.map(_cell).join(',')).join('\r\n');

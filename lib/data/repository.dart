@@ -343,6 +343,13 @@ class TxnRepository {
 
   Future<void> hide(Txn t) => _db.hide(t.id!);
 
+  /// Saves [note] (trimmed; empty clears it) when it differs.
+  Future<void> setNote(Txn t, String note) async {
+    final n = note.trim();
+    if (n == (t.note ?? '')) return;
+    await _db.setNote(t.key, n);
+  }
+
   Future<List<Txn>> hidden() => _db.hidden();
 
   Future<void> unhide(Txn t) => _db.unhide(t.id!);

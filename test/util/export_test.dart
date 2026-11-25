@@ -26,9 +26,10 @@ void main() {
     ]);
     expect(bytes.sublist(0, 3), [0xEF, 0xBB, 0xBF], reason: 'UTF-8 BOM');
     final lines = utf8.decode(bytes.sublist(3)).trim().split('\r\n');
-    expect(lines[0], 'Date,Time,Payee,Category,Amount,Account,Type,UPI ref');
+    expect(
+        lines[0], 'Date,Time,Payee,Category,Amount,Account,Type,UPI ref,Note');
     expect(lines[1],
-        '2026-11-03,09:05,SWIGGY,Food,-250.00,HDFC Bank xx1234,UPI,427612345678');
+        '2026-11-03,09:05,SWIGGY,Food,-250.00,HDFC Bank xx1234,UPI,427612345678,');
     expect(lines[2],
         startsWith('2026-11-03,09:05,"Acme, ""Pvt"" Ltd",Food,52000.00'));
     expect(lines[3], startsWith('2026-11-03,09:05,"\'=HYPERLINK(""x"")"'));

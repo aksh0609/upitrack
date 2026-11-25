@@ -708,7 +708,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         focusNode: _searchFocus,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
-          hintText: 'Search payee or merchant',
+          hintText: 'Search payee, merchant or note',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: searching
               ? IconButton(
