@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../background/reminders.dart';
 import '../data/repository.dart';
 import '../sync/google_button.dart';
 import '../sync/oauth_ids.dart';
 import '../sync/sync_controller.dart';
+import '../util/native_bridge.dart';
 import '../widgets/app_lock.dart';
 
 /// Settings: App lock (phones) and Sync with Google Drive (spec §4.7).
@@ -21,6 +23,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool? _lock;
+  bool? _reminders;
 
   @override
   void initState() {
@@ -30,7 +33,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     final lock = await widget.repository.flag(kAppLockFlag);
-    if (mounted) setState(() => _lock = lock);
+    final off = await widget.repository.flag(kRemindersOff);
+    if (mounted) {
+      setState(() {
+        _lock = lock;
+        _reminders = !off;
+      });
+    }
   }
 
   void _snack(String message) => ScaffoldMessenger.of(context)
@@ -69,6 +78,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: const Text('App lock'),
               subtitle: const Text('Ask for your fingerprint, face or phone '
                   'PIN when the app opens'),
+            ),
+            const SizedBox(height: 24),
+          ],
+          if (NativeBridge.available && _reminders != null) ...[
+            Text('Notifications', style: title),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _reminders!,
+              onChanged: (on) async {
+                await widget.repository.setFlag(kRemindersOff, !on);
+                if (mounted) setState(() => _reminders = on);
+              },
+              title: const Text('Weekly summary and bill reminders'),
+              subtitle: const Text('Last week\'s spending each Monday, and a '
+                  'note a day or two before a monthly payment is due'),
             ),
             const SizedBox(height: 24),
           ],

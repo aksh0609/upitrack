@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../background/reminders.dart';
 import '../data/repository.dart';
 import '../models/account.dart';
 import '../models/budget.dart';
@@ -239,6 +240,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     await _refreshShortcutCount();
     await _load();
+    if (_access == _Access.granted &&
+        !await widget.repository.flag(kRemindersOff)) {
+      // Best effort, like the background route.
+      unawaited(runReminders(widget.repository.between).catchError((_) {}));
+    }
     unawaited(_checkUpdate(force: true));
     await widget.syncController?.syncNow();
   }

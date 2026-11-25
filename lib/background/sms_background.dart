@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../data/db.dart';
 import '../models/summary.dart';
 import '../util/native_bridge.dart';
+import 'reminders.dart';
 import '../parser/categorizer.dart';
 import '../parser/sms_parser.dart';
 import 'sms_notification.dart';
@@ -19,10 +20,15 @@ Future<void> runSmsBackground() async {
   channel.setMethodCallHandler((call) async {
     if (call.method != 'sms') return null;
     final args = (call.arguments as Map).cast<String, Object?>();
-    await notifyForSms(
-      address: args['address'] as String? ?? '',
-      body: args['body'] as String? ?? '',
-    );
+    try {
+      await notifyForSms(
+        address: args['address'] as String? ?? '',
+        body: args['body'] as String? ?? '',
+      );
+    } finally {
+      // Any SMS, bank or not, is a chance to send what is due.
+      await _remind();
+    }
     return null;
   });
   // Tell Kotlin the handler is in place; it answers with the 'sms' call.
@@ -76,6 +82,24 @@ Future<void> notifyForSms(
                 todayPaise: month?.todaySpentPaise ?? 0,
                 monthPaise: month?.spentPaise ?? 0);
     await NativeBridge.widget(base.add(parsed.amountPaise, now));
+  }
+}
+
+/// The weekly summary and bill reminders, from a read-only connection.
+Future<void> _remind() async {
+  final AppDb db;
+  try {
+    db = await AppDb.openReadOnly();
+  } catch (_) {
+    return;
+  }
+  try {
+    if (await db.getMeta(kRemindersOff) == '1') return;
+    await runReminders(db.between);
+  } catch (_) {
+    // Best effort; the app's next sync tries again.
+  } finally {
+    await db.close();
   }
 }
 
