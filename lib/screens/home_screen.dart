@@ -26,6 +26,7 @@ import '../widgets/summary_card.dart';
 import '../widgets/txn_day_list.dart';
 import 'add_txn_sheet.dart';
 import 'budgets_screen.dart';
+import 'export_sheet.dart';
 import 'hidden_screen.dart';
 import 'import_flow.dart';
 import 'iphone_setup_screen.dart';
@@ -438,6 +439,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             tooltip: 'More',
             onSelected: (v) {
               if (v == 'import') _importStatement();
+              if (v == 'export') {
+                showExportSheet(context, widget.repository, _month);
+              }
               if (v == 'iphone') _openIphoneSetup();
               if (v == 'hidden') _openHidden();
               if (v == 'budgets') _openBudgets();
@@ -449,6 +453,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: ListTile(
                   leading: Icon(Icons.upload_file),
                   title: Text('Import file'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'export',
+                child: ListTile(
+                  leading: Icon(Icons.ios_share),
+                  title: Text('Export'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
