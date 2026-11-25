@@ -42,6 +42,18 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+        <!-- Home-screen widget: spent today and this month. -->
+        <receiver
+            android:name=".SpendWidget"
+            android:exported="false"
+            android:label="Spent today">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/spend_widget_info" />
+        </receiver>
         <!-- Lets the package installer read the APK the app downloaded. -->
         <provider
             android:name="androidx.core.content.FileProvider"

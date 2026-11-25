@@ -18,6 +18,7 @@ import '../models/txn.dart';
 import '../sync/sync_controller.dart';
 import '../util/apk_installer.dart';
 import '../util/format.dart';
+import '../util/native_bridge.dart';
 import '../util/search.dart';
 import '../util/update_check.dart';
 import '../util/who.dart';
@@ -264,6 +265,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _account = null;
         }
       });
+    }
+    if (_isCurrentMonth) {
+      unawaited(NativeBridge.widget(WidgetTotals.of(txns, DateTime.now())));
     }
     widget.syncController?.poke();
   }

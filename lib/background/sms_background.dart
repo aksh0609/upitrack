@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../data/db.dart';
 import '../models/summary.dart';
+import '../util/native_bridge.dart';
 import '../parser/categorizer.dart';
 import '../parser/sms_parser.dart';
 import 'sms_notification.dart';
@@ -62,6 +63,20 @@ Future<void> notifyForSms(
       ),
     ),
   );
+
+  // The home-screen widget counts it now; the app's next load recounts
+  // from the database, so nothing is counted twice.
+  if (parsed.isDebit && Categorizer.countsAsSpending(category)) {
+    final now = DateTime.now();
+    final month = ctx.month;
+    final base =
+        WidgetTotals.fromJson(await NativeBridge.get(WidgetTotals.key)) ??
+            WidgetTotals(
+                day: now,
+                todayPaise: month?.todaySpentPaise ?? 0,
+                monthPaise: month?.spentPaise ?? 0);
+    await NativeBridge.widget(base.add(parsed.amountPaise, now));
+  }
 }
 
 /// The payee→category rules, budgets and this month's totals, from a
@@ -92,9 +107,7 @@ Future<
     return (
       rules: await db.rules(),
       budgets: budgets,
-      month: budgets.isEmpty
-          ? null
-          : MonthSummary.from(await db.between(start, now)),
+      month: MonthSummary.from(await db.between(start, now)),
     );
   } finally {
     await db.close();
