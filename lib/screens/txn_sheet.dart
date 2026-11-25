@@ -68,7 +68,9 @@ class _TxnSheetState extends State<_TxnSheet> {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        // Room for the keyboard, so the note field stays in view.
+        padding: EdgeInsets.fromLTRB(
+            24, 0, 24, 24 + MediaQuery.of(context).viewInsets.bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
