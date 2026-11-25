@@ -348,6 +348,11 @@ class TxnRepository {
   Future<void> unhide(Txn t) => _db.unhide(t.id!);
   Future<List<AccountRef>> accounts() => _db.accounts();
 
+  /// An on/off setting of this device (not synced), off unless set.
+  Future<bool> flag(String key) async => await _db.getMeta(key) == '1';
+
+  Future<void> setFlag(String key, bool on) => _db.setMeta(key, on ? '1' : '0');
+
   /// Monthly limits by category, or [kTotalBudget] for all spending.
   Future<Map<String, int>> budgets() => _db.budgets();
 

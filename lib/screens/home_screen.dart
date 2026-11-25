@@ -334,10 +334,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openSettings() async {
-    final sync = widget.syncController;
-    if (sync == null) return;
     await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => SettingsScreen(sync: sync),
+      builder: (_) => SettingsScreen(
+          repository: widget.repository, sync: widget.syncController),
     ));
     await _load();
   }
@@ -469,15 +468,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
-              if (widget.syncController != null)
-                const PopupMenuItem(
-                  value: 'settings',
-                  child: ListTile(
-                    leading: Icon(Icons.cloud_sync_outlined),
-                    title: Text('Sync'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
+              const PopupMenuItem(
+                value: 'settings',
+                child: ListTile(
+                  leading: Icon(Icons.settings_outlined),
+                  title: Text('Settings'),
+                  contentPadding: EdgeInsets.zero,
                 ),
+              ),
               if (_access == _Access.iphone || _isIphoneWeb)
                 const PopupMenuItem(
                   value: 'iphone',

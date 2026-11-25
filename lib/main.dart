@@ -18,6 +18,7 @@ import 'sync/sync_controller.dart';
 import 'sync/sync_keys.dart';
 import 'theme.dart';
 import 'util/update_check.dart';
+import 'widgets/app_lock.dart';
 
 /// Commit time of this build, stamped by CI with
 /// `--dart-define=BUILD_TIME=$(git log -1 --format=%ct)`; null when built by hand.
@@ -77,6 +78,11 @@ class UpiTrackApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
+      // Above the Navigator, so the lock covers every screen.
+      builder: (context, child) => appLockAvailable
+          ? AppLockGate(
+              enabled: () => repository.flag(kAppLockFlag), child: child!)
+          : child!,
       home: HomeScreen(
         repository: repository,
         updateChecker: updateChecker,
