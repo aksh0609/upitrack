@@ -24,6 +24,7 @@ const List<CategoryInfo> kCategories = [
   CategoryInfo('Education', Icons.school, Color(0xFF6A4C93)),
   CategoryInfo('Transfers', Icons.swap_horiz, Color(0xFF6C757D)),
   CategoryInfo('Income', Icons.account_balance_wallet, Color(0xFF2E7D32)),
+  CategoryInfo(Categorizer.lent, Icons.handshake_outlined, Color(0xFF0EA5E9)),
   CategoryInfo(Categorizer.selfTransfer, Icons.swap_vert, Color(0xFF9E9E9E)),
   CategoryInfo('Others', Icons.category, Color(0xFF8D99AE)),
 ];

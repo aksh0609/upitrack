@@ -16,9 +16,14 @@ class Categorizer {
   static const String selfTransfer = 'Self transfer';
   static const String others = 'Others';
 
+  /// Money lent to or borrowed from a person; only the user assigns it.
+  /// Kept out of spending and never a payee rule, like [selfTransfer].
+  static const String lent = 'Lent & borrowed';
+
   /// False for money that only moved and wasn't spent or earned; such rows
   /// are left out of every total.
-  static bool countsAsSpending(String category) => category != selfTransfer;
+  static bool countsAsSpending(String category) =>
+      category != selfTransfer && category != lent;
 
   /// Checked top to bottom, so put more specific words first
   /// (e.g. "prime video" before "amazon").

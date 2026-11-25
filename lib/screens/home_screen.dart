@@ -10,11 +10,13 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/repository.dart';
 import '../models/account.dart';
 import '../models/budget.dart';
+import '../models/lent.dart';
 import '../models/recurring.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
 import '../sync/sync_controller.dart';
 import '../util/apk_installer.dart';
+import '../util/format.dart';
 import '../util/search.dart';
 import '../util/update_check.dart';
 import '../util/who.dart';
@@ -30,6 +32,7 @@ import 'budgets_screen.dart';
 import 'export_sheet.dart';
 import 'hidden_screen.dart';
 import 'import_flow.dart';
+import 'lent_screen.dart';
 import 'iphone_setup_screen.dart';
 import 'merchant_screen.dart';
 import 'merchants_screen.dart';
@@ -86,6 +89,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<AccountRef> _accounts = const [];
   AccountRef? _account;
   Map<String, int> _budgets = const {};
+
+  /// Open balances with people, all time.
+  List<LentBalance> _lent = const [];
   UpdateInfo? _update;
 
   /// 0..1 while an update APK downloads; null otherwise.
@@ -242,11 +248,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final unparsed = await widget.repository.unparsed();
     final accounts = await widget.repository.accounts();
     final budgets = await widget.repository.budgets();
+    final lent = lentBalances(await widget.repository.lent());
     if (mounted) {
       setState(() {
         _txns = txns;
         _history = history;
         _budgets = budgets;
+        _lent = lent;
         _unparsedCount = unparsed.length;
         _accounts = accounts;
         // Chips are hidden below two accounts, so a lingering pick would hide rows.
@@ -366,6 +374,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _load();
   }
 
+  Future<void> _openLent() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => LentScreen(repository: widget.repository),
+    ));
+    await _load();
+  }
+
   Future<void> _openHidden() async {
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => HiddenScreen(repository: widget.repository),
@@ -463,6 +478,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (v == 'hidden') _openHidden();
               if (v == 'budgets') _openBudgets();
               if (v == 'subscriptions') _openSubscriptions();
+              if (v == 'lent') _openLent();
               if (v == 'settings') _openSettings();
             },
             itemBuilder: (_) => [
@@ -495,6 +511,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: ListTile(
                   leading: Icon(Icons.event_repeat),
                   title: Text('Subscriptions & bills'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'lent',
+                child: ListTile(
+                  leading: Icon(Icons.handshake_outlined),
+                  title: Text('Lent & borrowed'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -729,6 +753,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               onTap: _openMerchant,
             ),
           ),
+        if (_lent.any((b) => b.balancePaise != 0))
+          _Section(
+            index: 3,
+            title: 'Lent & borrowed',
+            action: 'Open',
+            onAction: _openLent,
+            child: _LentSummary(people: _lent, onTap: _openLent),
+          ),
         _Section(
           index: 3,
           title: 'Recent payments',
@@ -854,6 +886,40 @@ class _SyncLine extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The open balances: who owes you and whom you owe, three at most.
+class _LentSummary extends StatelessWidget {
+  const _LentSummary({required this.people, required this.onTap});
+
+  final List<LentBalance> people;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final open = people.where((b) => b.balancePaise != 0).take(3);
+    return Column(
+      children: [
+        for (final b in open)
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+            onTap: onTap,
+            leading: const Icon(Icons.person_outline),
+            title: Text(b.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text(balanceLabel(b.balancePaise)),
+            trailing: Text(formatPaise(b.balancePaise.abs()),
+                style: text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: kTabular,
+                    color: b.balancePaise > 0
+                        ? scheme.moneyIn
+                        : scheme.onSurface)),
+          ),
+      ],
     );
   }
 }

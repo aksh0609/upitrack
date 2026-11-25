@@ -333,8 +333,8 @@ class TxnRepository {
 
   Future<void> setCategory(Txn t, String category,
       {required bool forPayee}) async {
-    // Spec §3.3: Self transfer is never a payee rule.
-    if (forPayee && category != Categorizer.selfTransfer) {
+    // Spec §3.3: Self transfer is never a payee rule; nor is a loan.
+    if (forPayee && Categorizer.countsAsSpending(category)) {
       await _db.setCategoryForPayee(t.counterparty, category);
     } else {
       await _db.setCategory(t.id!, category);
@@ -359,6 +359,9 @@ class TxnRepository {
   Future<bool> flag(String key) async => await _db.getMeta(key) == '1';
 
   Future<void> setFlag(String key, bool on) => _db.setMeta(key, on ? '1' : '0');
+
+  /// Every payment marked [Categorizer.lent], all time, newest first.
+  Future<List<Txn>> lent() => _db.inCategory(Categorizer.lent);
 
   /// Monthly limits by category, or [kTotalBudget] for all spending.
   Future<Map<String, int>> budgets() => _db.budgets();

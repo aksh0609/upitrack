@@ -115,7 +115,7 @@ class _TxnSheetState extends State<_TxnSheet> {
                   ),
               ],
             ),
-            if (t.canApplyToPayee && _category != Categorizer.selfTransfer)
+            if (t.canApplyToPayee && Categorizer.countsAsSpending(_category))
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _forPayee,

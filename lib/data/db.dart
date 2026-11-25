@@ -252,8 +252,9 @@ class AppDb {
     final now = _now;
     await _db.transaction((txn) async {
       await txn.update('txns', {'category': category},
-          where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ?',
-          whereArgs: [counterparty, now]);
+          where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ? '
+              'AND category != ?',
+          whereArgs: [counterparty, now, Categorizer.lent]);
       await txn.insert('rules',
           {'counterparty': counterparty, 'category': category, 'ts': now},
           conflictAlgorithm: ConflictAlgorithm.replace);
@@ -274,6 +275,10 @@ class AppDb {
 
   /// Everything the user hid, newest first, across all months.
   Future<List<Txn>> hidden() => _txns('t.hidden = 1', const []);
+
+  /// Visible payments in [category], across all months.
+  Future<List<Txn>> inCategory(String category) =>
+      _txns('t.hidden = 0 AND t.category = ?', [category]);
 
   /// [note] '' clears it.
   Future<void> setNote(String key, String note) => _db.transaction((txn) async {
@@ -399,20 +404,22 @@ class AppDb {
         await txn.insert('rules', r,
             conflictAlgorithm: ConflictAlgorithm.replace);
         await txn.update('txns', {'category': r['category']},
-            where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ?',
-            whereArgs: [r['counterparty'], r['ts']]);
+            where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ? '
+                'AND category != ?',
+            whereArgs: [r['counterparty'], r['ts'], Categorizer.lent]);
         changed = true;
       }
       // A row that arrived after a local rule was set still follows it.
       for (final r in await txn.query('rules')) {
         final n = await txn.update('txns', {'category': r['category']},
             where:
-                'counterparty = ? AND is_debit = 1 AND edit_ts < ? AND category != ? AND category != ?',
+                'counterparty = ? AND is_debit = 1 AND edit_ts < ? AND category != ? AND category != ? AND category != ?',
             whereArgs: [
               r['counterparty'],
               r['ts'],
               r['category'],
-              Categorizer.selfTransfer
+              Categorizer.selfTransfer,
+              Categorizer.lent,
             ]);
         if (n > 0) changed = true;
       }

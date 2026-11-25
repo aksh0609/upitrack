@@ -162,7 +162,7 @@ class _MerchantScreenState extends State<MerchantScreen> {
               children: [
                 for (final c in kCategories)
                   if (c.name != Categorizer.income &&
-                      c.name != Categorizer.selfTransfer)
+                      Categorizer.countsAsSpending(c.name))
                     ChoiceChip(
                       label: Text(c.name),
                       avatar: Icon(c.icon, size: 18, color: c.color),

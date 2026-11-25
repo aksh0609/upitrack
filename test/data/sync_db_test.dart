@@ -182,4 +182,26 @@ void main() {
     await a.applySnapshot(await b.snapshot());
     expect((await all(a)).single.note, isNull);
   });
+
+  test('a payee rule, here or from another device, leaves a loan alone',
+      () async {
+    await a.insertAll([txn('l1'), txn('l2')]);
+    final rows = await all(a);
+    await a.setCategory(rows.first.id!, 'Lent & borrowed');
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await a.setCategoryForPayee('SWIGGY', 'Groceries');
+    final cats = {for (final t in await all(a)) t.key: t.category};
+    expect(cats[rows.first.key], 'Lent & borrowed');
+    expect(cats[rows.last.key], 'Groceries');
+
+    await b.insertAll([txn('l1')]);
+    await b.setCategory((await all(b)).single.id!, 'Lent & borrowed');
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await b.setCategoryForPayee('SWIGGY', 'Travel');
+    await a.applySnapshot(await b.snapshot());
+    // b's newer edit marks l1 as a loan on a too; b's later Travel rule
+    // then touches neither loan.
+    expect((await a.inCategory('Lent & borrowed')).map((t) => t.key),
+        unorderedEquals(['l1', 'l2']));
+  });
 }
