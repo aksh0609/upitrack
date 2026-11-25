@@ -16,6 +16,10 @@ class Categorizer {
   static const String selfTransfer = 'Self transfer';
   static const String others = 'Others';
 
+  /// False for money that only moved and wasn't spent or earned; such rows
+  /// are left out of every total.
+  static bool countsAsSpending(String category) => category != selfTransfer;
+
   /// Checked top to bottom, so put more specific words first
   /// (e.g. "prime video" before "amazon").
   static const Map<String, List<String>> keywords = {

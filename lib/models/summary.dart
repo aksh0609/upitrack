@@ -34,7 +34,7 @@ class MonthSummary {
     final byMerchant = <String, ({int count, int totalPaise})>{};
 
     for (final t in txns) {
-      if (t.category == Categorizer.selfTransfer) continue;
+      if (!Categorizer.countsAsSpending(t.category)) continue;
       if (t.isDebit) {
         spent += t.amountPaise;
         byCategory[t.category] = (byCategory[t.category] ?? 0) + t.amountPaise;
@@ -83,7 +83,7 @@ List<({DateTime month, int paise})> monthlyTotals(
     final next = DateTime(month.year, month.month + 1);
     var sum = 0;
     for (final t in txns) {
-      if (!t.isDebit || t.category == Categorizer.selfTransfer) continue;
+      if (!t.isDebit || !Categorizer.countsAsSpending(t.category)) continue;
       if (!t.time.isBefore(month) && t.time.isBefore(next)) {
         sum += t.amountPaise;
       }

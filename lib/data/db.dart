@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../models/account.dart';
+import '../models/budget.dart';
 import '../models/txn.dart';
 import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
@@ -23,7 +24,7 @@ class AppDb {
     final db = await f.openDatabase(
       path ?? p.join(await f.getDatabasesPath(), 'upitrack.db'),
       options: OpenDatabaseOptions(
-        version: 5,
+        version: 6,
         onCreate: (db, version) async {
           await db.execute('''
           CREATE TABLE txns(
@@ -52,11 +53,13 @@ class AppDb {
           await db.execute(
               'CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
           await _createUnparsed(db);
+          await _createBudgets(db);
         },
         onUpgrade: (db, from, to) async {
           if (from < 2) await _createUnparsed(db);
           if (from < 3) await _upgradeToV3(db);
           if (from < 5) await _reguessOthers(db);
+          if (from < 6) await _createBudgets(db);
         },
       ),
     );
@@ -73,6 +76,11 @@ class AppDb {
             ts INTEGER NOT NULL,
             state TEXT NOT NULL DEFAULT 'open'
           )''');
+
+  /// v6: monthly limits, keyed by category name or [kTotalBudget]. A
+  /// removed budget stays as 0 so the removal syncs; `ts` decides merges.
+  static Future<void> _createBudgets(Database db) => db.execute(
+      'CREATE TABLE IF NOT EXISTS budgets(category TEXT PRIMARY KEY, paise INTEGER NOT NULL, ts INTEGER NOT NULL)');
 
   /// v3 (spec §4.3): `edit_ts` on txns and `ts` on rules. Existing rows
   /// whose category differs from the automatic guess were set by hand, so
@@ -301,6 +309,23 @@ class AppDb {
   Future<void> deleteMeta(String k) =>
       _db.delete('meta', where: 'k = ?', whereArgs: [k]);
 
+  // ------------------------------------------------------------- budgets
+
+  /// Monthly limits in paise, keyed by category or [kTotalBudget].
+  Future<Map<String, int>> budgets() async => {
+        for (final r in await _db.query('budgets', where: 'paise > 0'))
+          r['category'] as String: r['paise'] as int
+      };
+
+  /// [paise] 0 removes the budget.
+  Future<void> setBudget(String category, int paise) =>
+      _db.transaction((txn) async {
+        await txn.insert(
+            'budgets', {'category': category, 'paise': paise, 'ts': _now},
+            conflictAlgorithm: ConflictAlgorithm.replace);
+        await _markDirty(txn);
+      });
+
   // -------------------------------------------------------------- sync
 
   /// This device's whole table for upload (spec §4.4): every row including
@@ -312,6 +337,9 @@ class AppDb {
       exportedMs: _now,
       txns: [for (final r in rows) Map<String, Object?>.from(r)..remove('id')],
       rules: await rulesRows(),
+      budgets: [
+        for (final r in await _db.query('budgets')) Map<String, Object?>.from(r)
+      ],
     );
   }
 
@@ -376,8 +404,32 @@ class AppDb {
             ]);
         if (n > 0) changed = true;
       }
+      if (await _mergeNewest(txn, 'budgets', ['category', 'paise', 'ts'],
+          snapshot['budgets'] as List?)) {
+        changed = true;
+      }
       if (changed) await _markDirty(txn);
     });
+    return changed;
+  }
+
+  /// Rows of a small keyed table from another device; as with payee rules,
+  /// the newer `ts` wins. Only [columns] are copied (the first is the key),
+  /// so a newer app's extra fields don't break the insert. Older snapshots
+  /// have no list at all.
+  static Future<bool> _mergeNewest(
+      Transaction txn, String table, List<String> columns, List? rows) async {
+    if (rows == null) return false;
+    final key = columns.first;
+    final local = {for (final r in await txn.query(table)) r[key] as String: r};
+    var changed = false;
+    for (final raw in rows) {
+      final remote = Map<String, Object?>.from(raw as Map);
+      if (!ruleWins(local[remote[key]], remote)) continue;
+      await txn.insert(table, {for (final c in columns) c: remote[c]},
+          conflictAlgorithm: ConflictAlgorithm.replace);
+      changed = true;
+    }
     return changed;
   }
 

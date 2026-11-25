@@ -1,4 +1,5 @@
 import '../models/account.dart';
+import '../models/budget.dart' show kTotalBudget;
 import '../models/txn.dart';
 import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
@@ -346,6 +347,12 @@ class TxnRepository {
 
   Future<void> unhide(Txn t) => _db.unhide(t.id!);
   Future<List<AccountRef>> accounts() => _db.accounts();
+
+  /// Monthly limits by category, or [kTotalBudget] for all spending.
+  Future<Map<String, int>> budgets() => _db.budgets();
+
+  /// [paise] 0 removes the budget.
+  Future<void> setBudget(String key, int paise) => _db.setBudget(key, paise);
 
   // ----------------------------------------------------------- unparsed
 

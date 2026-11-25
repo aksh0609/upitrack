@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../data/repository.dart';
 import '../models/account.dart';
+import '../models/budget.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
 import '../sync/sync_controller.dart';
@@ -18,11 +19,13 @@ import '../util/update_check.dart';
 import '../util/who.dart';
 import '../theme.dart';
 import '../widgets/appear.dart';
+import '../widgets/budget_bars.dart';
 import '../widgets/category_bars.dart';
 import '../widgets/merchant_bars.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/txn_day_list.dart';
 import 'add_txn_sheet.dart';
+import 'budgets_screen.dart';
 import 'hidden_screen.dart';
 import 'import_flow.dart';
 import 'iphone_setup_screen.dart';
@@ -74,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _unparsedCount = 0;
   List<AccountRef> _accounts = const [];
   AccountRef? _account;
+  Map<String, int> _budgets = const {};
   UpdateInfo? _update;
 
   /// 0..1 while an update APK downloads; null otherwise.
@@ -227,9 +231,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .between(_month, DateTime(_month.year, _month.month + 1));
     final unparsed = await widget.repository.unparsed();
     final accounts = await widget.repository.accounts();
+    final budgets = await widget.repository.budgets();
     if (mounted) {
       setState(() {
         _txns = txns;
+        _budgets = budgets;
         _unparsedCount = unparsed.length;
         _accounts = accounts;
         // Chips are hidden below two accounts, so a lingering pick would hide rows.
@@ -336,6 +342,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _load();
   }
 
+  Future<void> _openBudgets() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => BudgetsScreen(repository: widget.repository),
+    ));
+    await _load();
+  }
+
   Future<void> _openHidden() async {
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => HiddenScreen(repository: widget.repository),
@@ -428,6 +441,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (v == 'import') _importStatement();
               if (v == 'iphone') _openIphoneSetup();
               if (v == 'hidden') _openHidden();
+              if (v == 'budgets') _openBudgets();
               if (v == 'settings') _openSettings();
             },
             itemBuilder: (_) => [
@@ -436,6 +450,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: ListTile(
                   leading: Icon(Icons.upload_file),
                   title: Text('Import file'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'budgets',
+                child: ListTile(
+                  leading: Icon(Icons.savings_outlined),
+                  title: Text('Budgets'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -622,10 +644,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 onAdd: _addManual,
               )
       else ...[
+        // Budgets count the whole month, whatever the filters show.
+        if (_budgets.isNotEmpty)
+          _Section(
+            index: 1,
+            title: 'Budgets',
+            action: 'Edit',
+            onAction: _openBudgets,
+            child: BudgetBars(
+                lines: budgetLines(_budgets, MonthSummary.from(_txns))),
+          ),
         if (summary.byCategory.isNotEmpty)
           _Section(
             index: 1,
             title: 'Where it went',
+            action: _budgets.isEmpty ? 'Set budgets' : null,
+            onAction: _openBudgets,
             child: CategoryBars(totals: summary.byCategory),
           ),
         if (summary.byMerchant.isNotEmpty)

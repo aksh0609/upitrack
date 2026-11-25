@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../data/db.dart';
+import '../models/summary.dart';
 import '../parser/categorizer.dart';
 import '../parser/sms_parser.dart';
 import 'sms_notification.dart';
@@ -32,11 +33,14 @@ Future<void> notifyForSms(
   final parsed = SmsParser.parse(address, body);
   if (parsed == null) return;
 
-  final rules = await _rules();
+  final ctx = await _context();
   final who = parsed.counterparty ?? 'Unknown';
   final category =
-      Categorizer.categorizeWith(rules, who, isDebit: parsed.isDebit);
-  final text = notificationText(parsed, category);
+      Categorizer.categorizeWith(ctx.rules, who, isDebit: parsed.isDebit);
+  final text = notificationText(parsed, category,
+      budget: parsed.isDebit
+          ? budgetNote(ctx.budgets, ctx.month, category, parsed.amountPaise)
+          : null);
 
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(
@@ -60,17 +64,38 @@ Future<void> notifyForSms(
   );
 }
 
-/// The payee→category rules, from a private read-only connection. Empty when
-/// the database doesn't exist yet (an SMS before the app's first launch).
-Future<Map<String, String>> _rules() async {
+/// The payee→category rules, budgets and this month's totals, from a
+/// private read-only connection. Empty when the database doesn't exist yet
+/// (an SMS before the app's first launch).
+/// ponytail: the month is as of the app's last SMS sync, so payments caught
+/// since then are missing from the budget line until the app is opened.
+Future<
+    ({
+      Map<String, String> rules,
+      Map<String, int> budgets,
+      MonthSummary? month
+    })> _context() async {
   final AppDb db;
   try {
     db = await AppDb.openReadOnly();
   } catch (_) {
-    return const {};
+    return (
+      rules: const <String, String>{},
+      budgets: const <String, int>{},
+      month: null
+    );
   }
   try {
-    return await db.rules();
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month);
+    final budgets = await db.budgets();
+    return (
+      rules: await db.rules(),
+      budgets: budgets,
+      month: budgets.isEmpty
+          ? null
+          : MonthSummary.from(await db.between(start, now)),
+    );
   } finally {
     await db.close();
   }

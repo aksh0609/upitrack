@@ -19,7 +19,7 @@ List<Widget> txnsGroupedByDay(
   final muted = Theme.of(context).colorScheme.onSurfaceVariant;
   final spentByDay = <DateTime, int>{};
   for (final t in txns) {
-    if (!t.isDebit || t.category == Categorizer.selfTransfer) continue;
+    if (!t.isDebit || !Categorizer.countsAsSpending(t.category)) continue;
     final day = DateTime(t.time.year, t.time.month, t.time.day);
     spentByDay[day] = (spentByDay[day] ?? 0) + t.amountPaise;
   }

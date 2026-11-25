@@ -146,4 +146,26 @@ void main() {
     await b.applySnapshot(await a.snapshot());
     expect((await all(b)).single.category, 'Shopping');
   });
+
+  test('budgets sync both ways; a removal wins when newer', () async {
+    await a.setBudget('Food', 500000);
+    expect(await b.applySnapshot(await a.snapshot()), isTrue);
+    expect(await b.budgets(), {'Food': 500000});
+
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await b.setBudget('Food', 0);
+    await a.applySnapshot(await b.snapshot());
+    expect(await a.budgets(), isEmpty);
+    expect(await a.applySnapshot(await b.snapshot()), isFalse,
+        reason: 'idempotent');
+  });
+
+  test('a snapshot from an older app, without budgets, still applies',
+      () async {
+    await a.setBudget('Food', 500000);
+    final old = await b.snapshot()
+      ..remove('budgets');
+    await a.applySnapshot(old);
+    expect(await a.budgets(), {'Food': 500000});
+  });
 }
