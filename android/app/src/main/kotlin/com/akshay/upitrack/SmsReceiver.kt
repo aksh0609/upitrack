@@ -46,6 +46,8 @@ class SmsReceiver : BroadcastReceiver() {
         timeout = Runnable { finish() }
         handler.postDelayed(timeout, 9_000)
 
+        // Lets Dart add the payment to the home-screen widget at once.
+        NativeBridge.attach(engine.dartExecutor.binaryMessenger, app)
         val channel = MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL)
         channel.setMethodCallHandler { call, result ->
             if (call.method == "ready") {

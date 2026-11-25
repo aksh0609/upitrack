@@ -146,4 +146,62 @@ void main() {
     await b.applySnapshot(await a.snapshot());
     expect((await all(b)).single.category, 'Shopping');
   });
+
+  test('budgets sync both ways; a removal wins when newer', () async {
+    await a.setBudget('Food', 500000);
+    expect(await b.applySnapshot(await a.snapshot()), isTrue);
+    expect(await b.budgets(), {'Food': 500000});
+
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await b.setBudget('Food', 0);
+    await a.applySnapshot(await b.snapshot());
+    expect(await a.budgets(), isEmpty);
+    expect(await a.applySnapshot(await b.snapshot()), isFalse,
+        reason: 'idempotent');
+  });
+
+  test('a snapshot from an older app, without budgets, still applies',
+      () async {
+    await a.setBudget('Food', 500000);
+    final old = await b.snapshot()
+      ..remove('budgets');
+    await a.applySnapshot(old);
+    expect(await a.budgets(), {'Food': 500000});
+  });
+
+  test('notes come back with payments, sync, and clear', () async {
+    await a.insertAll([txn('n1')]);
+    await a.setNote('n1', 'office lunch');
+    expect((await all(a)).single.note, 'office lunch');
+
+    await b.applySnapshot(await a.snapshot());
+    expect((await all(b)).single.note, 'office lunch');
+
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await b.setNote('n1', '');
+    await a.applySnapshot(await b.snapshot());
+    expect((await all(a)).single.note, isNull);
+  });
+
+  test('a payee rule, here or from another device, leaves a loan alone',
+      () async {
+    await a.insertAll([txn('l1'), txn('l2')]);
+    final rows = await all(a);
+    await a.setCategory(rows.first.id!, 'Lent & borrowed');
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await a.setCategoryForPayee('SWIGGY', 'Groceries');
+    final cats = {for (final t in await all(a)) t.key: t.category};
+    expect(cats[rows.first.key], 'Lent & borrowed');
+    expect(cats[rows.last.key], 'Groceries');
+
+    await b.insertAll([txn('l1')]);
+    await b.setCategory((await all(b)).single.id!, 'Lent & borrowed');
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await b.setCategoryForPayee('SWIGGY', 'Travel');
+    await a.applySnapshot(await b.snapshot());
+    // b's newer edit marks l1 as a loan on a too; b's later Travel rule
+    // then touches neither loan.
+    expect((await a.inCategory('Lent & borrowed')).map((t) => t.key),
+        unorderedEquals(['l1', 'l2']));
+  });
 }

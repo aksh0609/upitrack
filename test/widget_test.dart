@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:upitrack/data/db.dart';
+import 'package:upitrack/data/shortcut_inbox.dart';
+import 'package:upitrack/data/sms_source.dart';
+import 'package:upitrack/data/repository.dart';
 import 'package:upitrack/models/txn.dart';
 import 'package:upitrack/screens/settings_screen.dart';
 import 'package:upitrack/sync/sync_controller.dart';
@@ -103,7 +106,10 @@ void main() {
         storeFor: (_) => store,
         iterations: 1000);
     await tester.runAsync(sync.start);
-    await tester.pumpWidget(MaterialApp(home: SettingsScreen(sync: sync)));
+    await tester.pumpWidget(MaterialApp(
+        home: SettingsScreen(
+            repository: TxnRepository(db, SmsSource(), ShortcutInbox()),
+            sync: sync)));
 
     expect(find.text('Sign in with Google'), findsOneWidget);
     await tester.runAsync(() async {

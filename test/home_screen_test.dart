@@ -110,6 +110,19 @@ void main() {
     expect(find.text('Swiggy'), findsNothing);
   });
 
+  testWidgets('Trends compares months and draws the year and the days',
+      (tester) async {
+    final db = await openSampleDb(tester);
+    await pumpHome(tester, db);
+    await tester.tap(find.text('Trends'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Compared with'), findsOneWidget);
+    expect(find.text('Last 12 months'), findsOneWidget);
+    await tester.drag(find.text('Last 12 months'), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(find.text('Day by day'), findsOneWidget);
+  });
+
   testWidgets('An empty month offers Import and Add', (tester) async {
     final db = await openSampleDb(tester, withData: false);
     await pumpHome(tester, db);

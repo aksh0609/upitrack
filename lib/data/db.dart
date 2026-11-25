@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../models/account.dart';
+import '../models/budget.dart';
 import '../models/txn.dart';
 import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
@@ -23,7 +24,7 @@ class AppDb {
     final db = await f.openDatabase(
       path ?? p.join(await f.getDatabasesPath(), 'upitrack.db'),
       options: OpenDatabaseOptions(
-        version: 5,
+        version: 7,
         onCreate: (db, version) async {
           await db.execute('''
           CREATE TABLE txns(
@@ -52,11 +53,15 @@ class AppDb {
           await db.execute(
               'CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)');
           await _createUnparsed(db);
+          await _createBudgets(db);
+          await _createNotes(db);
         },
         onUpgrade: (db, from, to) async {
           if (from < 2) await _createUnparsed(db);
           if (from < 3) await _upgradeToV3(db);
           if (from < 5) await _reguessOthers(db);
+          if (from < 6) await _createBudgets(db);
+          if (from < 7) await _createNotes(db);
         },
       ),
     );
@@ -73,6 +78,17 @@ class AppDb {
             ts INTEGER NOT NULL,
             state TEXT NOT NULL DEFAULT 'open'
           )''');
+
+  /// v6: monthly limits, keyed by category name or [kTotalBudget]. A
+  /// removed budget stays as 0 so the removal syncs; `ts` decides merges.
+  static Future<void> _createBudgets(Database db) => db.execute(
+      'CREATE TABLE IF NOT EXISTS budgets(category TEXT PRIMARY KEY, paise INTEGER NOT NULL, ts INTEGER NOT NULL)');
+
+  /// v7: the user's note on a payment, by txn key. Its own table, so a row
+  /// from an older app's snapshot never carries an unknown column. A
+  /// cleared note stays as '' so the clearing syncs.
+  static Future<void> _createNotes(Database db) => db.execute(
+      'CREATE TABLE IF NOT EXISTS notes(key TEXT PRIMARY KEY, note TEXT NOT NULL, ts INTEGER NOT NULL)');
 
   /// v3 (spec §4.3): `edit_ts` on txns and `ts` on rules. Existing rows
   /// whose category differs from the automatic guess were set by hand, so
@@ -187,27 +203,25 @@ class AppDb {
     return added;
   }
 
-  Future<List<Txn>> between(DateTime from, DateTime to) async {
-    final rows = await _db.query(
-      'txns',
-      where: 'hidden = 0 AND ts >= ? AND ts < ?',
-      whereArgs: [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch],
-      orderBy: 'ts DESC',
-    );
+  /// Payments with their note, newest first. [where] names columns as `t.`.
+  Future<List<Txn>> _txns(String where, List<Object?> args) async {
+    final rows = await _db.rawQuery(
+        'SELECT t.*, n.note AS note FROM txns t '
+        'LEFT JOIN notes n ON n.key = t.key '
+        'WHERE $where ORDER BY t.ts DESC',
+        args);
     return rows.map(Txn.fromMap).toList();
   }
 
+  Future<List<Txn>> between(DateTime from, DateTime to) => _txns(
+      't.hidden = 0 AND t.ts >= ? AND t.ts < ?',
+      [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
+
   /// Like [between] but including hidden rows: duplicate matching must see
   /// a payment the user hid, or a statement import would add it back.
-  Future<List<Txn>> betweenIncludingHidden(DateTime from, DateTime to) async {
-    final rows = await _db.query(
-      'txns',
-      where: 'ts >= ? AND ts < ?',
-      whereArgs: [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch],
-      orderBy: 'ts DESC',
-    );
-    return rows.map(Txn.fromMap).toList();
-  }
+  Future<List<Txn>> betweenIncludingHidden(DateTime from, DateTime to) => _txns(
+      't.ts >= ? AND t.ts < ?',
+      [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
 
   /// Accounts seen in the SMS, most-used first.
   Future<List<AccountRef>> accounts() async {
@@ -238,8 +252,9 @@ class AppDb {
     final now = _now;
     await _db.transaction((txn) async {
       await txn.update('txns', {'category': category},
-          where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ?',
-          whereArgs: [counterparty, now]);
+          where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ? '
+              'AND category != ?',
+          whereArgs: [counterparty, now, Categorizer.lent]);
       await txn.insert('rules',
           {'counterparty': counterparty, 'category': category, 'ts': now},
           conflictAlgorithm: ConflictAlgorithm.replace);
@@ -259,11 +274,18 @@ class AppDb {
       });
 
   /// Everything the user hid, newest first, across all months.
-  Future<List<Txn>> hidden() async {
-    final rows =
-        await _db.query('txns', where: 'hidden = 1', orderBy: 'ts DESC');
-    return rows.map(Txn.fromMap).toList();
-  }
+  Future<List<Txn>> hidden() => _txns('t.hidden = 1', const []);
+
+  /// Visible payments in [category], across all months.
+  Future<List<Txn>> inCategory(String category) =>
+      _txns('t.hidden = 0 AND t.category = ?', [category]);
+
+  /// [note] '' clears it.
+  Future<void> setNote(String key, String note) => _db.transaction((txn) async {
+        await txn.insert('notes', {'key': key, 'note': note, 'ts': _now},
+            conflictAlgorithm: ConflictAlgorithm.replace);
+        await _markDirty(txn);
+      });
 
   Future<Map<String, String>> rules() async {
     final rows = await _db.query('rules');
@@ -301,6 +323,23 @@ class AppDb {
   Future<void> deleteMeta(String k) =>
       _db.delete('meta', where: 'k = ?', whereArgs: [k]);
 
+  // ------------------------------------------------------------- budgets
+
+  /// Monthly limits in paise, keyed by category or [kTotalBudget].
+  Future<Map<String, int>> budgets() async => {
+        for (final r in await _db.query('budgets', where: 'paise > 0'))
+          r['category'] as String: r['paise'] as int
+      };
+
+  /// [paise] 0 removes the budget.
+  Future<void> setBudget(String category, int paise) =>
+      _db.transaction((txn) async {
+        await txn.insert(
+            'budgets', {'category': category, 'paise': paise, 'ts': _now},
+            conflictAlgorithm: ConflictAlgorithm.replace);
+        await _markDirty(txn);
+      });
+
   // -------------------------------------------------------------- sync
 
   /// This device's whole table for upload (spec §4.4): every row including
@@ -312,6 +351,12 @@ class AppDb {
       exportedMs: _now,
       txns: [for (final r in rows) Map<String, Object?>.from(r)..remove('id')],
       rules: await rulesRows(),
+      budgets: [
+        for (final r in await _db.query('budgets')) Map<String, Object?>.from(r)
+      ],
+      notes: [
+        for (final r in await _db.query('notes')) Map<String, Object?>.from(r)
+      ],
     );
   }
 
@@ -359,25 +404,55 @@ class AppDb {
         await txn.insert('rules', r,
             conflictAlgorithm: ConflictAlgorithm.replace);
         await txn.update('txns', {'category': r['category']},
-            where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ?',
-            whereArgs: [r['counterparty'], r['ts']]);
+            where: 'counterparty = ? AND is_debit = 1 AND edit_ts < ? '
+                'AND category != ?',
+            whereArgs: [r['counterparty'], r['ts'], Categorizer.lent]);
         changed = true;
       }
       // A row that arrived after a local rule was set still follows it.
       for (final r in await txn.query('rules')) {
         final n = await txn.update('txns', {'category': r['category']},
             where:
-                'counterparty = ? AND is_debit = 1 AND edit_ts < ? AND category != ? AND category != ?',
+                'counterparty = ? AND is_debit = 1 AND edit_ts < ? AND category != ? AND category != ? AND category != ?',
             whereArgs: [
               r['counterparty'],
               r['ts'],
               r['category'],
-              Categorizer.selfTransfer
+              Categorizer.selfTransfer,
+              Categorizer.lent,
             ]);
         if (n > 0) changed = true;
       }
+      if (await _mergeNewest(txn, 'budgets', ['category', 'paise', 'ts'],
+          snapshot['budgets'] as List?)) {
+        changed = true;
+      }
+      if (await _mergeNewest(
+          txn, 'notes', ['key', 'note', 'ts'], snapshot['notes'] as List?)) {
+        changed = true;
+      }
       if (changed) await _markDirty(txn);
     });
+    return changed;
+  }
+
+  /// Rows of a small keyed table from another device; as with payee rules,
+  /// the newer `ts` wins. Only [columns] are copied (the first is the key),
+  /// so a newer app's extra fields don't break the insert. Older snapshots
+  /// have no list at all.
+  static Future<bool> _mergeNewest(
+      Transaction txn, String table, List<String> columns, List? rows) async {
+    if (rows == null) return false;
+    final key = columns.first;
+    final local = {for (final r in await txn.query(table)) r[key] as String: r};
+    var changed = false;
+    for (final raw in rows) {
+      final remote = Map<String, Object?>.from(raw as Map);
+      if (!ruleWins(local[remote[key]], remote)) continue;
+      await txn.insert(table, {for (final c in columns) c: remote[c]},
+          conflictAlgorithm: ConflictAlgorithm.replace);
+      changed = true;
+    }
     return changed;
   }
 

@@ -2,40 +2,133 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../background/reminders.dart';
+import '../data/repository.dart';
 import '../sync/google_button.dart';
 import '../sync/oauth_ids.dart';
 import '../sync/sync_controller.dart';
+import '../util/native_bridge.dart';
+import '../widgets/app_lock.dart';
 
-/// Settings → Sync with Google Drive (spec §4.7).
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.sync});
+/// Settings: App lock (phones) and Sync with Google Drive (spec §4.7).
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key, required this.repository, this.sync});
+
+  final TxnRepository repository;
+  final SyncController? sync;
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool? _lock;
+  bool? _reminders;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final lock = await widget.repository.flag(kAppLockFlag);
+    final off = await widget.repository.flag(kRemindersOff);
+    if (mounted) {
+      setState(() {
+        _lock = lock;
+        _reminders = !off;
+      });
+    }
+  }
+
+  void _snack(String message) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+
+  /// Turning it on asks once, so nobody locks themselves out.
+  Future<void> _setLock(bool on) async {
+    if (on) {
+      if (!await deviceCanLock()) {
+        _snack('Set a screen lock (PIN, pattern, fingerprint or face) in '
+            "your phone's settings first.");
+        return;
+      }
+      if (!await unlockWithDevice()) return;
+    }
+    await widget.repository.setFlag(kAppLockFlag, on);
+    if (mounted) setState(() => _lock = on);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sync = widget.sync;
+    final title = Theme.of(context).textTheme.titleMedium;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (appLockAvailable && _lock != null) ...[
+            Text('Privacy', style: title),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _lock!,
+              onChanged: _setLock,
+              title: const Text('App lock'),
+              subtitle: const Text('Ask for your fingerprint, face or phone '
+                  'PIN when the app opens'),
+            ),
+            const SizedBox(height: 24),
+          ],
+          if (NativeBridge.available && _reminders != null) ...[
+            Text('Notifications', style: title),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _reminders!,
+              onChanged: (on) async {
+                await widget.repository.setFlag(kRemindersOff, !on);
+                if (mounted) setState(() => _reminders = on);
+              },
+              title: const Text('Weekly summary and bill reminders'),
+              subtitle: const Text('Last week\'s spending each Monday, and a '
+                  'note a day or two before a monthly payment is due'),
+            ),
+            const SizedBox(height: 24),
+          ],
+          if (sync != null) _SyncSection(sync: sync),
+        ],
+      ),
+    );
+  }
+}
+
+class _SyncSection extends StatelessWidget {
+  const _SyncSection({required this.sync});
 
   final SyncController sync;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListenableBuilder(
-        listenable: sync,
-        builder: (context, _) => ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text('Sync with Google Drive',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            switch (sync.state) {
-              SyncState.signedOut => _SignedOut(sync: sync),
-              SyncState.needsPassphrase => _Passphrase(sync: sync),
-              SyncState.ready => _Ready(sync: sync),
-            },
-            if (sync.lastError != null) ...[
-              const SizedBox(height: 12),
-              Text(sync.lastError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ],
+    return ListenableBuilder(
+      listenable: sync,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Sync with Google Drive',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          switch (sync.state) {
+            SyncState.signedOut => _SignedOut(sync: sync),
+            SyncState.needsPassphrase => _Passphrase(sync: sync),
+            SyncState.ready => _Ready(sync: sync),
+          },
+          if (sync.lastError != null) ...[
+            const SizedBox(height: 12),
+            Text(sync.lastError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
-        ),
+        ],
       ),
     );
   }

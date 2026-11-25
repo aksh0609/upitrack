@@ -21,6 +21,7 @@ class TxnTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final details = [
+      if (txn.note != null) txn.note!,
       if (txn.hasTime) DateFormat('h:mm a').format(txn.time),
       if (txn.source == 'statement') 'Statement',
       if (txn.bank != null)

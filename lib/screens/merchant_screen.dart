@@ -52,7 +52,7 @@ class _MerchantScreenState extends State<MerchantScreen> {
   }
 
   Iterable<Txn> get _debits => (_txns ?? const [])
-      .where((t) => t.isDebit && t.category != Categorizer.selfTransfer);
+      .where((t) => t.isDebit && Categorizer.countsAsSpending(t.category));
 
   bool get _canSetCategory => _debits.any((t) => t.canApplyToPayee);
 
@@ -162,7 +162,7 @@ class _MerchantScreenState extends State<MerchantScreen> {
               children: [
                 for (final c in kCategories)
                   if (c.name != Categorizer.income &&
-                      c.name != Categorizer.selfTransfer)
+                      Categorizer.countsAsSpending(c.name))
                     ChoiceChip(
                       label: Text(c.name),
                       avatar: Icon(c.icon, size: 18, color: c.color),

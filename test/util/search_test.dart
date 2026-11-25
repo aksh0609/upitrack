@@ -25,4 +25,19 @@ void main() {
     expect(matchesSearch(txn('x'), ''), isTrue);
     expect(matchesSearch(txn('x'), '   '), isTrue);
   });
+
+  test('matches the note too', () {
+    final t = Txn(
+      key: 'k',
+      amountPaise: 100,
+      isDebit: true,
+      counterparty: 'RAHUL',
+      channel: 'UPI',
+      category: 'Transfers',
+      time: DateTime(2026, 10, 1),
+      note: 'Birthday gift',
+    );
+    expect(matchesSearch(t, 'birthday'), isTrue);
+    expect(matchesSearch(t, 'rent'), isFalse);
+  });
 }

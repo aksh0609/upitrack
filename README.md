@@ -31,6 +31,15 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - **Self transfers:** moving money between your own accounts is labelled "Self transfer" and left out of spent and received
 - **Sync (optional):** sign in with Google and choose a passphrase; your payments, categories and hidden rows are encrypted on the phone and kept in a hidden folder of your own Google Drive, so a second phone shows the same data. Google cannot read it
 - **Web app:** [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/) shows the same synced data in a browser and imports statements; nothing to install
+- **Budgets:** a monthly limit overall and per category (menu → Budgets). The Overview shows what is left, amber from 80% and red once over; on Android the payment notification adds "85% of budget used"
+- **Trends tab:** this month against last (day for day while the month runs), by category; twelve months of spending (tap a bar to open that month); and a calendar shaded by what went out each day
+- **Subscriptions & bills:** payments that come back every month at about the same amount (Netflix, a phone plan, rent, a SIP) are found on their own, with the monthly total and when each is next due; the Overview lists the coming week's
+- **Lent & borrowed:** give a payment to or from a person the category *Lent & borrowed* and it leaves spending; menu → Lent & borrowed keeps a balance per person ("Rahul owes you ₹1,500") with a reminder to share
+- **Notes:** add a line to any payment ("office lunch, claim later"); search finds it
+- **Export:** a month or a year as CSV (for spreadsheets) or PDF, through the share sheet
+- **App lock** (Settings): fingerprint, face or the phone's PIN when the app opens and after 30 seconds away
+- **Home-screen widget (Android):** spent today and this month, updated the moment a bank SMS arrives
+- **Weekly summary and bill reminders (Android):** "₹8,200 spent last week, 15% more than usual" on Monday, and a note a day or two before a monthly payment is due (Settings → Notifications)
 
 ## Get the Android APK
 
@@ -173,11 +182,14 @@ Manual entry ──────────────────────�
 | `lib/parser/merchant.dart` | Payee string → merchant name. One line per merchant. |
 | `lib/sync/` | Snapshot + merge rules (`snapshot.dart`, `merge.dart`), encryption (`crypto.dart`), the sync round (`sync_service.dart`), the Drive adapter (`drive_sync_store.dart`) and the controller the UI talks to (`sync_controller.dart`). |
 | `lib/data/repository.dart` | Sync, import and duplicate matching. |
-| `lib/data/db.dart` | SQLite tables: `txns`, `rules` (payee → category), `meta`. |
+| `lib/data/db.dart` | SQLite tables: `txns`, `rules` (payee → category), `budgets`, `notes`, `meta`. Budgets and notes sync like rules: the newer `ts` wins. |
 | `lib/data/statement_reader.dart` | Opens PDFs (with password) and CSVs. |
 | `lib/data/shortcut_inbox.dart` | Reads messages saved by the iPhone Shortcuts action. |
 | `lib/parser/sms_log.dart` | Reads the SMS text log the Shortcuts automation appends to (web app route). |
+| `lib/models/` | Pure logic behind the screens: month totals, budgets, monthly repeats (`recurring.dart`), loans per person (`lent.dart`), trends and the weekly summary. |
+| `lib/background/` | The Android SMS engine: the payment notification, the widget update and the weekly summary / bill reminders (`reminders.dart`). |
 | `android/.../MainActivity.kt` | Reads `content://sms/inbox` on a background thread. |
+| `android/.../SpendWidget.kt`, `NativeBridge.kt` | The home-screen widget, and a small key-value store the background engine can write (`lib/util/native_bridge.dart`). |
 | `ios/Runner/BankSmsIntent.swift` | The "Log Bank SMS" Shortcuts action. |
 | `lib/screens/` | Dashboard, details, manual entry, import flow, iPhone guide. |
 

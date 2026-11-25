@@ -17,7 +17,7 @@ enum Who {
 /// Others and Income decide by the payee: a person unless
 /// [Categorizer.isBusiness] recognises a business.
 bool _isPerson(Txn t) => switch (t.category) {
-      Categorizer.transfers => true,
+      Categorizer.transfers || Categorizer.lent => true,
       Categorizer.others ||
       Categorizer.income =>
         Categorizer.isPerson(t.counterparty),

@@ -7,28 +7,41 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../background/reminders.dart';
 import '../data/repository.dart';
 import '../models/account.dart';
+import '../models/budget.dart';
+import '../models/lent.dart';
+import '../models/recurring.dart';
 import '../models/summary.dart';
+import '../models/trends.dart';
 import '../models/txn.dart';
 import '../sync/sync_controller.dart';
 import '../util/apk_installer.dart';
+import '../util/format.dart';
+import '../util/native_bridge.dart';
 import '../util/search.dart';
 import '../util/update_check.dart';
 import '../util/who.dart';
 import '../theme.dart';
 import '../widgets/appear.dart';
+import '../widgets/budget_bars.dart';
 import '../widgets/category_bars.dart';
 import '../widgets/merchant_bars.dart';
 import '../widgets/summary_card.dart';
+import '../widgets/trends.dart';
 import '../widgets/txn_day_list.dart';
 import 'add_txn_sheet.dart';
+import 'budgets_screen.dart';
+import 'export_sheet.dart';
 import 'hidden_screen.dart';
 import 'import_flow.dart';
+import 'lent_screen.dart';
 import 'iphone_setup_screen.dart';
 import 'merchant_screen.dart';
 import 'merchants_screen.dart';
 import 'settings_screen.dart';
+import 'subscriptions_screen.dart';
 import 'txn_sheet.dart';
 import 'unparsed_screen.dart';
 
@@ -61,12 +74,17 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   _Access _access = _Access.checking;
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+
+  /// The month on screen.
   List<Txn> _txns = const [];
+
+  /// The twelve months ending with it, for repeats and trends.
+  List<Txn> _history = const [];
   bool _syncing = false;
   bool _upiOnly = false;
   Who _who = Who.all;
 
-  /// 0 = Overview, 1 = Payments.
+  /// 0 = Overview, 1 = Payments, 2 = Trends.
   int _tab = 0;
   final TextEditingController _search = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
@@ -74,6 +92,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _unparsedCount = 0;
   List<AccountRef> _accounts = const [];
   AccountRef? _account;
+  Map<String, int> _budgets = const {};
+
+  /// Open balances with people, all time.
+  List<LentBalance> _lent = const [];
   UpdateInfo? _update;
 
   /// 0..1 while an update APK downloads; null otherwise.
@@ -218,18 +240,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     await _refreshShortcutCount();
     await _load();
+    if (_access == _Access.granted &&
+        !await widget.repository.flag(kRemindersOff)) {
+      // Best effort, like the background route.
+      unawaited(runReminders(widget.repository.between).catchError((_) {}));
+    }
     unawaited(_checkUpdate(force: true));
     await widget.syncController?.syncNow();
   }
 
   Future<void> _load() async {
-    final txns = await widget.repository
-        .between(_month, DateTime(_month.year, _month.month + 1));
+    final end = DateTime(_month.year, _month.month + 1);
+    final history = await widget.repository
+        .between(DateTime(_month.year, _month.month - 11), end);
+    final txns = history.where((t) => !t.time.isBefore(_month)).toList();
     final unparsed = await widget.repository.unparsed();
     final accounts = await widget.repository.accounts();
+    final budgets = await widget.repository.budgets();
+    final lent = lentBalances(await widget.repository.lent());
     if (mounted) {
       setState(() {
         _txns = txns;
+        _history = history;
+        _budgets = budgets;
+        _lent = lent;
         _unparsedCount = unparsed.length;
         _accounts = accounts;
         // Chips are hidden below two accounts, so a lingering pick would hide rows.
@@ -237,6 +271,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _account = null;
         }
       });
+    }
+    if (_isCurrentMonth) {
+      unawaited(NativeBridge.widget(WidgetTotals.of(txns, DateTime.now())));
     }
     widget.syncController?.poke();
   }
@@ -328,10 +365,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openSettings() async {
-    final sync = widget.syncController;
-    if (sync == null) return;
     await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => SettingsScreen(sync: sync),
+      builder: (_) => SettingsScreen(
+          repository: widget.repository, sync: widget.syncController),
+    ));
+    await _load();
+  }
+
+  Future<void> _openBudgets() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => BudgetsScreen(repository: widget.repository),
+    ));
+    await _load();
+  }
+
+  Future<void> _openSubscriptions() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => SubscriptionsScreen(repository: widget.repository),
+    ));
+    await _load();
+  }
+
+  Future<void> _openLent() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => LentScreen(repository: widget.repository),
     ));
     await _load();
   }
@@ -389,14 +446,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Filters shape both tabs; search narrows only the Payments list.
-    final visible = _txns
-        .where((t) => !_upiOnly || t.channel == 'UPI')
-        .where((t) => matchesWho(t, _who))
-        .where((t) =>
-            _account == null ||
-            (t.bank == _account!.bank && t.account == _account!.last4))
-        .toList();
+    // Filters shape every tab; search narrows only the Payments list.
+    bool keep(Txn t) =>
+        (!_upiOnly || t.channel == 'UPI') &&
+        matchesWho(t, _who) &&
+        (_account == null ||
+            (t.bank == _account!.bank && t.account == _account!.last4));
+    final visible = _txns.where(keep).toList();
     final summary = MonthSummary.from(visible);
 
     return Scaffold(
@@ -426,8 +482,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             tooltip: 'More',
             onSelected: (v) {
               if (v == 'import') _importStatement();
+              if (v == 'export') {
+                showExportSheet(context, widget.repository, _month);
+              }
               if (v == 'iphone') _openIphoneSetup();
               if (v == 'hidden') _openHidden();
+              if (v == 'budgets') _openBudgets();
+              if (v == 'subscriptions') _openSubscriptions();
+              if (v == 'lent') _openLent();
               if (v == 'settings') _openSettings();
             },
             itemBuilder: (_) => [
@@ -440,6 +502,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
               const PopupMenuItem(
+                value: 'export',
+                child: ListTile(
+                  leading: Icon(Icons.ios_share),
+                  title: Text('Export'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'budgets',
+                child: ListTile(
+                  leading: Icon(Icons.savings_outlined),
+                  title: Text('Budgets'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'subscriptions',
+                child: ListTile(
+                  leading: Icon(Icons.event_repeat),
+                  title: Text('Subscriptions & bills'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'lent',
+                child: ListTile(
+                  leading: Icon(Icons.handshake_outlined),
+                  title: Text('Lent & borrowed'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
                 value: 'hidden',
                 child: ListTile(
                   leading: Icon(Icons.visibility_off_outlined),
@@ -447,15 +541,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
-              if (widget.syncController != null)
-                const PopupMenuItem(
-                  value: 'settings',
-                  child: ListTile(
-                    leading: Icon(Icons.cloud_sync_outlined),
-                    title: Text('Sync'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
+              const PopupMenuItem(
+                value: 'settings',
+                child: ListTile(
+                  leading: Icon(Icons.settings_outlined),
+                  title: Text('Settings'),
+                  contentPadding: EdgeInsets.zero,
                 ),
+              ),
               if (_access == _Access.iphone || _isIphoneWeb)
                 const PopupMenuItem(
                   value: 'iphone',
@@ -509,6 +602,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             selectedIcon: Icon(Icons.receipt_long),
             label: 'Payments',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart_outlined),
+            selectedIcon: Icon(Icons.bar_chart),
+            label: 'Trends',
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -554,8 +652,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const SizedBox(height: 12),
                   if (_tab == 0)
                     ..._overview(context, summary, visible)
+                  else if (_tab == 1)
+                    ..._payments(context, visible)
                   else
-                    ..._payments(context, visible),
+                    ..._trends(_history.where(keep).toList()),
                 ],
               ),
             ),
@@ -605,6 +705,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   List<Widget> _overview(
       BuildContext context, MonthSummary summary, List<Txn> visible) {
+    final soon = _isCurrentMonth
+        ? comingUp(findRecurring(_history))
+        : const <Recurring>[];
     return [
       Appear(
         child: SummaryCard(
@@ -622,10 +725,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 onAdd: _addManual,
               )
       else ...[
+        // Budgets count the whole month, whatever the filters show.
+        if (_budgets.isNotEmpty)
+          _Section(
+            index: 1,
+            title: 'Budgets',
+            action: 'Edit',
+            onAction: _openBudgets,
+            child: BudgetBars(
+                lines: budgetLines(_budgets, MonthSummary.from(_txns))),
+          ),
+        if (soon.isNotEmpty)
+          _Section(
+            index: 1,
+            title: 'Coming up',
+            action: 'All',
+            onAction: _openSubscriptions,
+            child: Column(
+              children: [
+                for (final r in soon)
+                  RecurringTile(
+                    r: r,
+                    onTap: () => _openMerchant(r.name),
+                  ),
+              ],
+            ),
+          ),
         if (summary.byCategory.isNotEmpty)
           _Section(
             index: 1,
             title: 'Where it went',
+            action: _budgets.isEmpty ? 'Set budgets' : null,
+            onAction: _openBudgets,
             child: CategoryBars(totals: summary.byCategory),
           ),
         if (summary.byMerchant.isNotEmpty)
@@ -639,6 +770,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               limit: 5,
               onTap: _openMerchant,
             ),
+          ),
+        if (_lent.any((b) => b.balancePaise != 0))
+          _Section(
+            index: 3,
+            title: 'Lent & borrowed',
+            action: 'Open',
+            onAction: _openLent,
+            child: _LentSummary(people: _lent, onTap: _openLent),
           ),
         _Section(
           index: 3,
@@ -654,6 +793,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ];
   }
 
+  /// Month on month, the last twelve months, and the month day by day.
+  List<Widget> _trends(List<Txn> history) {
+    final prev = DateTime(_month.year, _month.month - 1);
+    return [
+      _Section(
+        index: 0,
+        title: 'Compared with ${DateFormat('MMMM').format(prev)}',
+        child: MonthChange(
+            comparison: compareMonths(history, _month), month: _month),
+      ),
+      _Section(
+        index: 1,
+        title: 'Last 12 months',
+        child: YearBars(
+          txns: history,
+          month: _month,
+          onMonth: (m) => _changeMonth(
+              (m.year - _month.year) * 12 + m.month - _month.month),
+        ),
+      ),
+      _Section(
+        index: 2,
+        title: 'Day by day',
+        child: SpendCalendar(txns: history, month: _month),
+      ),
+    ];
+  }
+
   List<Widget> _payments(BuildContext context, List<Txn> visible) {
     final listed =
         visible.where((t) => matchesSearch(t, _search.text)).toList();
@@ -664,7 +831,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         focusNode: _searchFocus,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
-          hintText: 'Search payee or merchant',
+          hintText: 'Search payee, merchant or note',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: searching
               ? IconButton(
@@ -765,6 +932,42 @@ class _SyncLine extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The open balances: who owes you and whom you owe, three at most.
+class _LentSummary extends StatelessWidget {
+  const _LentSummary({required this.people, required this.onTap});
+
+  final List<LentBalance> people;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final open = people.where((b) => b.balancePaise != 0).take(3);
+    return Column(
+      children: [
+        for (final b in open)
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+            onTap: onTap,
+            leading: CircleAvatar(
+              child: Text(b.name.isEmpty ? '?' : b.name[0].toUpperCase()),
+            ),
+            title: Text(b.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text(balanceLabel(b.balancePaise)),
+            trailing: Text(formatPaise(b.balancePaise.abs()),
+                style: text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: kTabular,
+                    color: b.balancePaise > 0
+                        ? scheme.moneyIn
+                        : scheme.onSurface)),
+          ),
+      ],
     );
   }
 }

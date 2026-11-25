@@ -30,17 +30,29 @@ class _TxnSheet extends StatefulWidget {
 
 class _TxnSheetState extends State<_TxnSheet> {
   late String _category = widget.txn.category;
+  late final _note = TextEditingController(text: widget.txn.note);
   bool _forPayee = true;
   bool _saving = false;
 
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
   Future<void> _save() async {
-    if (_category == widget.txn.category) {
+    final t = widget.txn;
+    final noteChanged = _note.text.trim() != (t.note ?? '');
+    if (_category == t.category && !noteChanged) {
       Navigator.pop(context, false);
       return;
     }
     setState(() => _saving = true);
-    await widget.repository.setCategory(widget.txn, _category,
-        forPayee: _forPayee && widget.txn.canApplyToPayee);
+    if (_category != t.category) {
+      await widget.repository
+          .setCategory(t, _category, forPayee: _forPayee && t.canApplyToPayee);
+    }
+    await widget.repository.setNote(t, _note.text);
     if (mounted) Navigator.pop(context, true);
   }
 
@@ -56,7 +68,9 @@ class _TxnSheetState extends State<_TxnSheet> {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        // Room for the keyboard, so the note field stays in view.
+        padding: EdgeInsets.fromLTRB(
+            24, 0, 24, 24 + MediaQuery.of(context).viewInsets.bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -75,6 +89,18 @@ class _TxnSheetState extends State<_TxnSheet> {
             if (t.account != null) _Detail('Account', '•••${t.account}'),
             if (t.ref != null) _Detail('UPI ref', t.ref!),
             _Detail('Type', t.channel),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _note,
+              maxLength: 200,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Note',
+                hintText: 'e.g. Office lunch, claim later',
+                prefixIcon: Icon(Icons.edit_note),
+                counterText: '',
+              ),
+            ),
             const SizedBox(height: 16),
             Text('Category', style: text.titleSmall),
             const SizedBox(height: 8),
@@ -91,7 +117,7 @@ class _TxnSheetState extends State<_TxnSheet> {
                   ),
               ],
             ),
-            if (t.canApplyToPayee && _category != Categorizer.selfTransfer)
+            if (t.canApplyToPayee && Categorizer.countsAsSpending(_category))
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _forPayee,

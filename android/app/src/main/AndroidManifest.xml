@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- In-app update: hand a downloaded release APK to the system installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- App lock: fingerprint or face, falling back to the screen lock. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <application
         android:label="UPI Track"
@@ -39,6 +41,18 @@
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
+        </receiver>
+        <!-- Home-screen widget: spent today and this month. -->
+        <receiver
+            android:name=".SpendWidget"
+            android:exported="false"
+            android:label="Spent today">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/spend_widget_info" />
         </receiver>
         <!-- Lets the package installer read the APK the app downloaded. -->
         <provider

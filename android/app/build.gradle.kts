@@ -76,4 +76,6 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     // FileProvider for in-app updates (MainActivity.installApk).
     implementation("androidx.core:core-ktx:1.16.0")
+    // AppCompat themes (res/values/styles.xml), needed by local_auth's dialog.
+    implementation("androidx.appcompat:appcompat:1.7.0")
 }
