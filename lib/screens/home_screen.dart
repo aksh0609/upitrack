@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/repository.dart';
 import '../models/account.dart';
 import '../models/budget.dart';
+import '../models/recurring.dart';
 import '../models/summary.dart';
 import '../models/txn.dart';
 import '../sync/sync_controller.dart';
@@ -33,6 +34,7 @@ import 'iphone_setup_screen.dart';
 import 'merchant_screen.dart';
 import 'merchants_screen.dart';
 import 'settings_screen.dart';
+import 'subscriptions_screen.dart';
 import 'txn_sheet.dart';
 import 'unparsed_screen.dart';
 
@@ -65,7 +67,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   _Access _access = _Access.checking;
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+
+  /// The month on screen.
   List<Txn> _txns = const [];
+
+  /// The twelve months ending with it, for repeats and trends.
+  List<Txn> _history = const [];
   bool _syncing = false;
   bool _upiOnly = false;
   Who _who = Who.all;
@@ -228,14 +235,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _load() async {
-    final txns = await widget.repository
-        .between(_month, DateTime(_month.year, _month.month + 1));
+    final end = DateTime(_month.year, _month.month + 1);
+    final history = await widget.repository
+        .between(DateTime(_month.year, _month.month - 11), end);
+    final txns = history.where((t) => !t.time.isBefore(_month)).toList();
     final unparsed = await widget.repository.unparsed();
     final accounts = await widget.repository.accounts();
     final budgets = await widget.repository.budgets();
     if (mounted) {
       setState(() {
         _txns = txns;
+        _history = history;
         _budgets = budgets;
         _unparsedCount = unparsed.length;
         _accounts = accounts;
@@ -349,6 +359,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _load();
   }
 
+  Future<void> _openSubscriptions() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => SubscriptionsScreen(repository: widget.repository),
+    ));
+    await _load();
+  }
+
   Future<void> _openHidden() async {
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => HiddenScreen(repository: widget.repository),
@@ -445,6 +462,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (v == 'iphone') _openIphoneSetup();
               if (v == 'hidden') _openHidden();
               if (v == 'budgets') _openBudgets();
+              if (v == 'subscriptions') _openSubscriptions();
               if (v == 'settings') _openSettings();
             },
             itemBuilder: (_) => [
@@ -469,6 +487,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: ListTile(
                   leading: Icon(Icons.savings_outlined),
                   title: Text('Budgets'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'subscriptions',
+                child: ListTile(
+                  leading: Icon(Icons.event_repeat),
+                  title: Text('Subscriptions & bills'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -637,6 +663,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   List<Widget> _overview(
       BuildContext context, MonthSummary summary, List<Txn> visible) {
+    final soon = _isCurrentMonth
+        ? comingUp(findRecurring(_history))
+        : const <Recurring>[];
     return [
       Appear(
         child: SummaryCard(
@@ -663,6 +692,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             onAction: _openBudgets,
             child: BudgetBars(
                 lines: budgetLines(_budgets, MonthSummary.from(_txns))),
+          ),
+        if (soon.isNotEmpty)
+          _Section(
+            index: 1,
+            title: 'Coming up',
+            action: 'All',
+            onAction: _openSubscriptions,
+            child: Column(
+              children: [
+                for (final r in soon)
+                  RecurringTile(
+                    r: r,
+                    onTap: () => _openMerchant(r.name),
+                  ),
+              ],
+            ),
           ),
         if (summary.byCategory.isNotEmpty)
           _Section(
