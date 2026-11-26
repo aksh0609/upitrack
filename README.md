@@ -29,7 +29,7 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - **Search** by payee or merchant
 - **Accounts:** every bank account seen in your SMS becomes a chip (HDFC •••1234, SBI •••5678) that filters the whole month, no setup needed
 - **Self transfers:** moving money between your own accounts is labelled "Self transfer" and left out of spent and received
-- **Sync (optional):** sign in with Google and choose a passphrase; your payments, categories and hidden rows are encrypted on the phone and kept in a hidden folder of your own Google Drive, so a second phone shows the same data. Google cannot read it
+- **Account:** the app opens on a welcome screen. *Continue with Google*, then choose a passphrase (create your account) or enter it (sign in on a new phone, and your payments come back). Your payments, categories and hidden rows are encrypted on the phone and kept in a hidden folder of your own Google Drive; Google cannot read them. No server, no email or password with us. Once signed in the app opens offline too; Settings → Account shows who is signed in, with Sign out
 - **Web app:** [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/) shows the same synced data in a browser and imports statements; nothing to install
 - **Budgets:** a monthly limit overall and per category (menu → Budgets). The Overview shows what is left, amber from 80% and red once over; on Android the payment notification adds "85% of budget used"
 - **Trends tab:** this month against last (day for day while the month runs), by category; twelve months of spending (tap a bar to open that month); and a calendar shaded by what went out each day
@@ -143,13 +143,13 @@ How rows are read: each transaction starts on a line with a date. Debit or credi
 
 ## Sync between devices
 
-Menu → **Sync** → *Sign in with Google*. The first device chooses a passphrase; every other device enters the same one. Sync runs when the app opens or resumes, a few seconds after any change, and on pull-to-refresh; a "Last synced" line sits under the summary card.
+Signing in is required: the welcome screen (Settings → Account afterwards) → *Continue with Google*. The first device chooses a passphrase (*Create account*); every other device enters the same one (*Sign in*). Builds without the client ids for their platform (`kSignInConfigured` in `lib/sync/oauth_ids.dart`, e.g. an iPhone build before its iOS client exists) skip the welcome screen. Sync runs when the app opens or resumes, a few seconds after any change, and on pull-to-refresh; a "Last synced" line sits under the summary card.
 
 - What is stored: an encrypted copy of every transaction (including the original SMS text and hidden rows) and your payee rules, in Drive's app-data folder, which only this app can see. `meta.json` there is plain and holds only the salt and a key check.
 - Encryption: PBKDF2-HMAC-SHA256 (200 000 rounds) turns the passphrase into an AES-256-GCM key on the device. The key, not the passphrase, is kept in the Android Keystore / iOS Keychain. Google never sees either.
 - Merging: payments are only ever added. For category changes and hiding, the most recent human change wins; an automatic import on another device never overwrites your correction.
-- Forgot the passphrase: *Reset sync* deletes the Drive files, you choose a new passphrase and this phone re-uploads everything. Other devices then ask for the new passphrase. Nothing on any phone is deleted.
-- *Sign out* forgets the key on this phone and keeps your data.
+- Forgot the passphrase: *Forgot it? Reset* (or *Reset account*) deletes the Drive files, you choose a new passphrase and this phone re-uploads everything. Other devices then ask for the new passphrase. Nothing on any phone is deleted.
+- *Sign out* forgets the key on this phone, keeps your data and returns to the welcome screen.
 
 ### Owner setup (once, by whoever publishes the app)
 
@@ -191,7 +191,7 @@ Manual entry ──────────────────────�
 | `android/.../MainActivity.kt` | Reads `content://sms/inbox` on a background thread. |
 | `android/.../SpendWidget.kt`, `NativeBridge.kt` | The home-screen widget, and a small key-value store the background engine can write (`lib/util/native_bridge.dart`). |
 | `ios/Runner/BankSmsIntent.swift` | The "Log Bank SMS" Shortcuts action. |
-| `lib/screens/` | Dashboard, details, manual entry, import flow, iPhone guide. |
+| `lib/screens/` | Dashboard, details, manual entry, import flow, iPhone guide, welcome / sign-in (`welcome_screen.dart`). |
 
 ## Adding a bank or fixing a missed transaction
 

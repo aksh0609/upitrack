@@ -7,6 +7,7 @@ import 'package:upitrack/data/sms_source.dart';
 import 'package:upitrack/data/repository.dart';
 import 'package:upitrack/models/txn.dart';
 import 'package:upitrack/screens/settings_screen.dart';
+import 'package:upitrack/screens/welcome_screen.dart';
 import 'package:upitrack/sync/sync_controller.dart';
 import 'package:upitrack/widgets/category_bars.dart';
 import 'package:upitrack/widgets/merchant_bars.dart';
@@ -93,7 +94,7 @@ void main() {
     expect(tapped, 'Amazon');
   });
 
-  testWidgets('Settings walks from sign-in to a passphrase to ready',
+  testWidgets('Sign-in is required: welcome, Google, passphrase, then the app',
       (tester) async {
     sqfliteFfiInit();
     // Real sqflite I/O never completes in the fake-async zone: run it in real time.
@@ -107,30 +108,39 @@ void main() {
         iterations: 1000);
     await tester.runAsync(sync.start);
     await tester.pumpWidget(MaterialApp(
-        home: SettingsScreen(
-            repository: TxnRepository(db, SmsSource(), ShortcutInbox()),
-            sync: sync)));
+        home: SignInGate(sync: sync, child: const Text('the app'))));
 
-    expect(find.text('Sign in with Google'), findsOneWidget);
+    expect(find.text('Welcome to UPI Track'), findsOneWidget);
+    expect(find.text('the app'), findsNothing);
     await tester.runAsync(() async {
-      await tester.tap(find.text('Sign in with Google'));
+      await tester.tap(find.text('Continue with Google'));
       await waitFor(() => sync.state == SyncState.needsPassphrase);
     });
     await tester.pumpAndSettle();
-    expect(find.text('Turn on sync'), findsOneWidget);
+    expect(find.text('Create your account'), findsOneWidget);
 
     await tester.enterText(
         find.byKey(const Key('passphrase')), 'correct horse');
     await tester.enterText(
         find.byKey(const Key('passphrase2')), 'correct horse');
     await tester.runAsync(() async {
-      await tester.tap(find.text('Turn on sync'));
+      await tester.tap(find.text('Create account'));
       await waitFor(() => !sync.syncing && sync.lastOk != null);
     });
     await tester.pump();
     await tester.pumpAndSettle();
+    expect(find.text('the app'), findsOneWidget);
+
+    await tester.pumpWidget(MaterialApp(
+        home: SettingsScreen(
+            repository: TxnRepository(db, SmsSource(), ShortcutInbox()),
+            sync: sync)));
+    // Let the screen's settings read finish before the database closes.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump();
+    expect(find.text('Signed in as me@example.com'), findsOneWidget);
     expect(find.text('Sync now'), findsOneWidget);
-    expect(find.textContaining('Last synced'), findsOneWidget);
     await tester.runAsync(db.close);
   });
 }

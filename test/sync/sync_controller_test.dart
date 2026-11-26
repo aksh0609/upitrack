@@ -57,6 +57,29 @@ void main() {
     expect(store.files.length, 2);
   });
 
+  test('signed in survives being offline; sign out ends it', () async {
+    final auth = FakeAuth();
+    final keys = MemorySyncKeys();
+    final c = controller(a, auth, keys);
+    await c.start();
+    expect(c.loaded, isTrue);
+    expect(c.signedIn, isFalse);
+    await c.signIn();
+    expect(c.signedIn, isFalse, reason: 'no passphrase yet');
+    await c.setPassphrase('correct horse');
+    expect(c.signedIn, isTrue);
+
+    // Next launch with no network: Google can't be reached, the app still opens.
+    auth.authorized = false;
+    final offline = controller(a, auth, keys);
+    await offline.start();
+    expect(offline.state, SyncState.signedOut);
+    expect(offline.signedIn, isTrue);
+
+    await offline.signOut();
+    expect(offline.signedIn, isFalse);
+  });
+
   test('second device: wrong passphrase refused, right one syncs the data',
       () async {
     final ca = controller(a, FakeAuth(), MemorySyncKeys());

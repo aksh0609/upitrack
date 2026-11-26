@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// The OAuth **Web application** client id from the owner's Google Cloud
 /// project (README → Owner setup). Android passes it as `serverClientId`;
 /// the web app passes it as `clientId`, so its "Authorised JavaScript
@@ -15,3 +17,11 @@ const String? kGoogleServerClientId =
 /// goes into ios/Runner/Info.plist as a URL scheme. Null = sign-in on an
 /// iPhone shows "not configured".
 const String? kGoogleIosClientId = null;
+
+/// Google sign-in can work here: the client ids this platform needs are set.
+/// Without them the app opens without asking anyone to sign in.
+bool get kSignInConfigured =>
+    kGoogleServerClientId != null &&
+    (kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.iOS ||
+        kGoogleIosClientId != null);
