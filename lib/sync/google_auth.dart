@@ -25,6 +25,9 @@ abstract class SyncAuth {
   /// On the web the Settings screen then offers "Allow Drive access"
   /// instead of Google's sign-in button.
   bool get hasAccount;
+
+  /// The account's email address, when one is known.
+  String? get email;
 }
 
 /// google_sign_in 7.x. The Android OAuth client is matched by package name +
@@ -46,6 +49,9 @@ class GoogleAuth implements SyncAuth {
 
   @override
   bool get hasAccount => _account != null;
+
+  @override
+  String? get email => _account?.email;
 
   /// Runs the plugin's initialize() once, however many callers overlap.
   Future<void> _init() async {

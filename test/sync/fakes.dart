@@ -34,6 +34,9 @@ class FakeAuth implements SyncAuth {
   bool get hasAccount => signedIn;
 
   @override
+  String? get email => signedIn ? 'me@example.com' : null;
+
+  @override
   Future<void> signOut() async => signedIn = false;
 }
 

@@ -61,15 +61,28 @@ class SyncController extends ChangeNotifier {
   /// while [state] is [SyncState.signedOut] for lack of Drive access.
   bool get hasAccount => _auth.hasAccount;
 
+  /// The signed-in Google account's address, when known.
+  String? get email => _auth.email;
+
+  /// [start] has read this device's key, so [signedIn] means something.
+  bool loaded = false;
+
+  /// This device has signed up or in (it holds the key) and hasn't signed
+  /// out. Stays true offline and when the Google token lapses, so the app
+  /// keeps opening; [SignInGate] shows the welcome screen otherwise.
+  bool get signedIn => _key != null;
+
   SecretKey? _key;
   Timer? _debounce;
 
   Future<void> start() async {
     final ms = int.tryParse(await _db.getMeta('drive_last_ok_ms') ?? '');
     if (ms != null) lastOk = DateTime.fromMillisecondsSinceEpoch(ms);
+    _key = await _guard(_keys.read);
+    loaded = true;
+    notifyListeners();
     final client = await _guard(_auth.restore);
     if (client == null) return _set(SyncState.signedOut);
-    _key = await _keys.read();
     if (_key == null) return _askPassphrase();
     _set(SyncState.ready);
     await syncNow();

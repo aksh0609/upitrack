@@ -10,7 +10,7 @@ import '../sync/sync_controller.dart';
 import '../util/native_bridge.dart';
 import '../widgets/app_lock.dart';
 
-/// Settings: App lock (phones) and Sync with Google Drive (spec §4.7).
+/// Settings: App lock (phones), reminders, and the account (spec §4.7).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.repository, this.sync});
 
@@ -109,15 +109,35 @@ class _SyncSection extends StatelessWidget {
   final SyncController sync;
 
   @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Account', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          const Text('Your payments are encrypted on this device with your '
+              'passphrase, then kept in a hidden folder of your Google Drive '
+              'so a new phone or the web app gets them back. Google cannot '
+              'read them.'),
+          const SizedBox(height: 12),
+          AccountPanel(sync: sync),
+        ],
+      );
+}
+
+/// Sign-in, passphrase or sync status, plus the last error: the Settings
+/// section and the body of the welcome screen.
+class AccountPanel extends StatelessWidget {
+  const AccountPanel({super.key, required this.sync});
+
+  final SyncController sync;
+
+  @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: sync,
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Sync with Google Drive',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
           switch (sync.state) {
             SyncState.signedOut => _SignedOut(sync: sync),
             SyncState.needsPassphrase => _Passphrase(sync: sync),
@@ -142,10 +162,6 @@ class _SignedOut extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Keep a second phone or the web app in step. Your data is '
-              'encrypted on this device with a passphrase before it is stored '
-              'in a hidden folder of your Google Drive; Google cannot read it.'),
-          const SizedBox(height: 12),
           if (kIsWeb && !sync.hasAccount && kGoogleServerClientId != null)
             // The web plugin signs in only through Google's own button; the
             // Drive consent follows with the tap below once the account is known.
@@ -156,7 +172,7 @@ class _SignedOut extends StatelessWidget {
               icon: const Icon(Icons.login),
               label: Text(kIsWeb && sync.hasAccount
                   ? 'Allow Drive access'
-                  : 'Sign in with Google'),
+                  : 'Continue with Google'),
             ),
         ],
       );
@@ -216,9 +232,10 @@ class _PassphraseState extends State<_Passphrase> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(_create
-              ? 'Choose a passphrase. It protects your data in Drive and is never '
-                  'sent to Google. Write it down: without it, sync has to be reset.'
-              : 'Enter the passphrase you chose on your other device.'),
+              ? 'Choose a passphrase for your account. It encrypts your data and '
+                  'is never sent to Google. Write it down: if you forget it, '
+                  'your account has to be reset (this phone keeps its data).'
+              : 'Enter the passphrase you chose when you created your account.'),
           const SizedBox(height: 12),
           TextField(
             key: const Key('passphrase'),
@@ -244,23 +261,25 @@ class _PassphraseState extends State<_Passphrase> {
                 style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
           const SizedBox(height: 12),
-          Row(
+          // Wraps on narrow phones instead of overflowing.
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               FilledButton(
                 onPressed: _busy ? null : _submit,
-                child: Text(_create ? 'Turn on sync' : 'Continue'),
+                child: Text(_create ? 'Create account' : 'Sign in'),
               ),
-              const SizedBox(width: 12),
               if (!_create)
                 TextButton(
                   onPressed:
                       _busy ? null : () => _confirmReset(context, widget.sync),
-                  child: const Text('Forgot it? Reset sync'),
+                  child: const Text('Forgot it? Reset'),
                 ),
-              const SizedBox(width: 12),
               TextButton(
                   onPressed: _busy ? null : widget.sync.signOut,
-                  child: const Text('Sign out')),
+                  child: const Text('Use another account')),
             ],
           ),
         ],
@@ -272,11 +291,11 @@ Future<void> _confirmReset(BuildContext context, SyncController sync) async {
   final yes = await showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
-      title: const Text('Reset sync?'),
+      title: const Text('Reset your account?'),
       content: const Text(
-          'Deletes the sync files in your Drive. Nothing on this '
-          'phone is lost; you choose a new passphrase and everything is uploaded '
-          'again. Other devices will ask for the new passphrase.'),
+          'Deletes the encrypted copy in your Google Drive. Nothing on '
+          'this phone is lost; you choose a new passphrase and everything is '
+          'uploaded again. Other devices will ask for the new passphrase.'),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -300,6 +319,11 @@ class _Ready extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (sync.email != null) ...[
+          Text('Signed in as ${sync.email}',
+              style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+        ],
         Text(sync.syncing
             ? 'Syncing…'
             : last == null
@@ -315,17 +339,23 @@ class _Ready extends StatelessWidget {
               label: const Text('Sync now'),
             ),
             OutlinedButton(
-                onPressed: sync.signOut, child: const Text('Sign out')),
+                onPressed: () {
+                  // Back to the welcome screen, which replaces the app.
+                  Navigator.of(context).popUntil((r) => r.isFirst);
+                  sync.signOut();
+                },
+                child: const Text('Sign out')),
             TextButton(
               onPressed: () => _confirmReset(context, sync),
-              child: const Text('Reset sync'),
+              child: const Text('Reset account'),
             ),
           ],
         ),
         const SizedBox(height: 12),
         Text(
-          'Sign out keeps your data on this phone and forgets the key. Reset '
-          'deletes the Drive files so you can choose a new passphrase.',
+          'Sign out keeps your data on this phone; you sign in again with '
+          'your passphrase. Reset deletes the Drive copy so you can choose a '
+          'new passphrase.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

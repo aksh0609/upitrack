@@ -12,8 +12,10 @@ import 'data/repository.dart';
 import 'data/shortcut_inbox.dart';
 import 'data/sms_source.dart';
 import 'screens/home_screen.dart';
+import 'screens/welcome_screen.dart';
 import 'sync/drive_sync_store.dart';
 import 'sync/google_auth.dart';
+import 'sync/oauth_ids.dart';
 import 'sync/sync_controller.dart';
 import 'sync/sync_keys.dart';
 import 'theme.dart';
@@ -73,6 +75,12 @@ class UpiTrackApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final home = HomeScreen(
+      repository: repository,
+      updateChecker: updateChecker,
+      syncController: syncController,
+    );
+    final sync = syncController;
     return MaterialApp(
       title: 'UPI Track',
       debugShowCheckedModeBanner: false,
@@ -83,11 +91,11 @@ class UpiTrackApp extends StatelessWidget {
           ? AppLockGate(
               enabled: () => repository.flag(kAppLockFlag), child: child!)
           : child!,
-      home: HomeScreen(
-        repository: repository,
-        updateChecker: updateChecker,
-        syncController: syncController,
-      ),
+      // Inside the Navigator (unlike the lock), so the welcome screen's
+      // text fields and dialogs work.
+      home: sync != null && kSignInConfigured
+          ? SignInGate(sync: sync, child: home)
+          : home,
     );
   }
 }
