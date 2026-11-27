@@ -90,11 +90,12 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 32),
                     child: Text(
-                      'Nothing yet. Add rent, school fees, an EMI or any bill '
-                      'you pay every month, and get a reminder a day or two '
-                      'before it is due. Payments that come back every month '
-                      'at about the same amount show here on their own after '
-                      'the third time.',
+                      'Nothing found yet. The app looks through your payments '
+                      'for ones that come back every month (rent, power and '
+                      'phone bills, a card bill, recharges, subscriptions, '
+                      'EMIs) and reminds you before the next one. It needs '
+                      'two months of the same amount, or three of a bill '
+                      'that changes. Missing one? Add it yourself.',
                       textAlign: TextAlign.center,
                       style: text.bodyLarge,
                     ),
@@ -122,11 +123,12 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'You get a reminder a day or two before each one is due '
-                    '(Android). Tap one you added to change it. The others '
-                    'were found from payments that came back about every '
-                    'month at about the same amount, and "Next" is a guess '
-                    'from the usual gap.',
+                    'Found by themselves from payments that come back every '
+                    'month; "Next" is a guess from the usual gap, and "~" '
+                    'marks a bill whose amount changes. Each shows on the '
+                    'home screen as Due soon, with a notification on '
+                    'Android, a day or two before. Tap one you added to '
+                    'change it.',
                     style: text.bodySmall?.copyWith(color: muted),
                   ),
                 ],
@@ -158,7 +160,7 @@ class RecurringTile extends StatelessWidget {
       title: Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text('${r.added ? 'Monthly ·' : 'Next'} '
           '${DateFormat('d MMM').format(r.next)} · $due'),
-      trailing: Text(formatPaise(r.amountPaise),
+      trailing: Text('${r.varies ? '~' : ''}${formatPaise(r.amountPaise)}',
           style: text.titleMedium
               ?.copyWith(fontWeight: FontWeight.w700, fontFeatures: kTabular)),
     );

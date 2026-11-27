@@ -131,4 +131,31 @@ void main() {
     expect(find.text('Import file'), findsOneWidget);
     expect(find.text('Add payment'), findsOneWidget);
   });
+
+  testWidgets('Due soon: a monthly payment due tomorrow, until waved away',
+      (tester) async {
+    final db = await openSampleDb(tester);
+    final now = DateTime.now();
+    Txn rent(int monthsAgo) => Txn(
+          key: 'rent$monthsAgo',
+          amountPaise: 1500000,
+          isDebit: true,
+          counterparty: 'MEENA IYER',
+          channel: 'UPI',
+          category: 'Transfers',
+          time: DateTime(now.year, now.month - monthsAgo, now.day + 1, 10),
+        );
+    await tester.runAsync(() => db.insertAll([rent(1), rent(2)]));
+    await pumpHome(tester, db);
+
+    expect(find.text('Due soon'), findsOneWidget);
+    expect(find.textContaining('MEENA IYER ·'), findsOneWidget);
+    await tester.tap(find.text('Got it'));
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pump();
+    }
+    expect(find.text('Due soon'), findsNothing);
+  });
 }

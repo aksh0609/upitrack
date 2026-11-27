@@ -15,6 +15,7 @@ import '../models/lent.dart';
 import '../models/recurring.dart';
 import '../models/summary.dart';
 import '../models/trends.dart';
+import '../models/weekly.dart' show dueKey;
 import '../models/txn.dart';
 import '../sync/sync_controller.dart';
 import '../util/apk_installer.dart';
@@ -95,6 +96,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, int> _budgets = const {};
   List<Bill> _bills = const [];
 
+  /// [dueKey]s of the Due soon rows the user waved away (setting below).
+  Set<String> _dueSeen = const {};
+  static const String _dueSeenKey = 'due_seen';
+
   /// Open balances with people, all time.
   List<LentBalance> _lent = const [];
   UpdateInfo? _update;
@@ -149,6 +154,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } finally {
       if (mounted) setState(() => _updateProgress = null);
     }
+  }
+
+  /// Regular payments due in the next two days, or up to three days late
+  /// and not paid yet, that haven't been waved away. A payment that came
+  /// in moves its repeat to next month, so paid ones drop off by themselves.
+  List<Recurring> get _dueSoon => _isCurrentMonth
+      ? [
+          for (final r in comingUp(regularPayments(_history, _bills), days: 2))
+            if (!_dueSeen.contains(dueKey(r))) r
+        ]
+      : const [];
+
+  Future<void> _dismissDue(List<Recurring> items) async {
+    final seen = [..._dueSeen.where((k) => k.isNotEmpty), ...items.map(dueKey)];
+    // The last 50 are plenty to remember what was waved away.
+    final keep = seen.skip(seen.length > 50 ? seen.length - 50 : 0);
+    await widget.repository.setSetting(_dueSeenKey, keep.join('\n'));
+    if (mounted) setState(() => _dueSeen = keep.toSet());
   }
 
   Future<void> _dismissUpdate() async {
@@ -260,6 +283,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final accounts = await widget.repository.accounts();
     final budgets = await widget.repository.budgets();
     final bills = await widget.repository.bills();
+    final seen = await widget.repository.setting(_dueSeenKey) ?? '';
     final lent = lentBalances(await widget.repository.lent());
     if (mounted) {
       setState(() {
@@ -267,6 +291,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _history = history;
         _budgets = budgets;
         _bills = bills;
+        _dueSeen = seen.split('\n').toSet();
         _lent = lent;
         _unparsedCount = unparsed.length;
         _accounts = accounts;
@@ -646,6 +671,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Cards that need the user: update, permission, set-up, unread SMS.
   List<Widget> _notices() => [
+        if (_dueSoon case final due when due.isNotEmpty)
+          _DueCard(
+            items: due,
+            onOpen: _openSubscriptions,
+            onDismiss: () => _dismissDue(due),
+          ),
         if (_update != null)
           _UpdateCard(
             info: _update!,
@@ -1372,6 +1403,71 @@ class _UnparsedCard extends StatelessWidget {
         subtitle: const Text('Add them by hand or report them'),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// "Due soon": regular payments due in the next couple of days.
+class _DueCard extends StatelessWidget {
+  const _DueCard({
+    required this.items,
+    required this.onOpen,
+    required this.onDismiss,
+  });
+
+  final List<Recurring> items;
+  final VoidCallback onOpen;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: scheme.tertiaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.event_available_outlined,
+                    size: 20, color: scheme.onTertiaryContainer),
+                const SizedBox(width: 8),
+                Text('Due soon', style: text.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final r in items)
+              Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('${r.name} · ${dueLabel(r.next)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.bodyMedium),
+                    ),
+                    Text('${r.varies ? '~' : ''}${formatPaise(r.amountPaise)}',
+                        style: text.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontFeatures: kTabular)),
+                  ],
+                ),
+              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: onDismiss, child: const Text('Got it')),
+                TextButton(onPressed: onOpen, child: const Text('See all')),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
