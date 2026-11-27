@@ -7,10 +7,12 @@ import '../data/repository.dart';
 import '../sync/google_button.dart';
 import '../sync/oauth_ids.dart';
 import '../sync/sync_controller.dart';
+import '../theme.dart';
 import '../util/native_bridge.dart';
 import '../widgets/app_lock.dart';
 
-/// Settings: App lock (phones), reminders, and the account (spec §4.7).
+/// Settings: appearance, App lock (phones), reminders, and the account
+/// (spec §4.7).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.repository, this.sync});
 
@@ -69,6 +71,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Text('Appearance', style: title),
+          const SizedBox(height: 12),
+          ValueListenableBuilder(
+            valueListenable: themeMode,
+            builder: (context, mode, _) => SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(
+                    value: ThemeMode.system,
+                    icon: Icon(Icons.brightness_auto_outlined),
+                    label: Text('System')),
+                ButtonSegment(
+                    value: ThemeMode.light,
+                    icon: Icon(Icons.light_mode_outlined),
+                    label: Text('Light')),
+                ButtonSegment(
+                    value: ThemeMode.dark,
+                    icon: Icon(Icons.dark_mode_outlined),
+                    label: Text('Dark')),
+              ],
+              selected: {mode},
+              showSelectedIcon: false,
+              onSelectionChanged: (s) {
+                themeMode.value = s.single;
+                widget.repository.setSetting(kThemeSetting, s.single.name);
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
           if (appLockAvailable && _lock != null) ...[
             Text('Privacy', style: title),
             SwitchListTile(

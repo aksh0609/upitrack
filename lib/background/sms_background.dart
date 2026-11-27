@@ -95,7 +95,7 @@ Future<void> _remind() async {
   }
   try {
     if (await db.getMeta(kRemindersOff) == '1') return;
-    await runReminders(db.between);
+    await runReminders(db.between, db.bills);
   } catch (_) {
     // Best effort; the app's next sync tries again.
   } finally {

@@ -14,6 +14,7 @@ Map<String, Object?> buildSnapshot({
   required List<Map<String, Object?>> rules,
   List<Map<String, Object?>> budgets = const [],
   List<Map<String, Object?>> notes = const [],
+  List<Map<String, Object?>> bills = const [],
 }) =>
     {
       'v': kSnapshotVersion,
@@ -24,6 +25,7 @@ Map<String, Object?> buildSnapshot({
       // Added after v1; older apps ignore them, so the version stays.
       'budgets': budgets,
       'notes': notes,
+      'bills': bills,
     };
 
 /// UTF-8 JSON. ponytail: no compression; ~300 B per row is fine for personal

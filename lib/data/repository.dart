@@ -1,5 +1,6 @@
 import '../models/account.dart';
 import '../models/budget.dart' show kTotalBudget;
+import '../models/recurring.dart' show Bill;
 import '../models/txn.dart';
 import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
@@ -360,6 +361,9 @@ class TxnRepository {
 
   Future<void> setFlag(String key, bool on) => _db.setMeta(key, on ? '1' : '0');
 
+  /// A text setting of this device (not synced).
+  Future<void> setSetting(String key, String value) => _db.setMeta(key, value);
+
   /// Every payment marked [Categorizer.lent], all time, newest first.
   Future<List<Txn>> lent() => _db.inCategory(Categorizer.lent);
 
@@ -368,6 +372,13 @@ class TxnRepository {
 
   /// [paise] 0 removes the budget.
   Future<void> setBudget(String key, int paise) => _db.setBudget(key, paise);
+
+  /// Regular payments the user added (rent on the 5th, school fees…).
+  Future<List<Bill>> bills() => _db.bills();
+
+  /// Adds or changes one; [day] 0 removes it.
+  Future<void> setBill(String name, int paise, int day) =>
+      _db.setBill(name, paise, day);
 
   // ----------------------------------------------------------- unparsed
 

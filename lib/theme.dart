@@ -16,6 +16,16 @@ const LinearGradient kBrandGradient = LinearGradient(
   colors: [_blue, _violet, _pink],
 );
 
+/// Light, dark or the phone's setting (Settings → Appearance). Read from
+/// [kThemeSetting] at launch; MaterialApp rebuilds when it changes.
+final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.system);
+
+/// Device setting (TxnRepository.setSetting): 'system', 'light' or 'dark'.
+const String kThemeSetting = 'theme';
+
+ThemeMode themeModeNamed(String? name) => ThemeMode.values
+    .firstWhere((m) => m.name == name, orElse: () => ThemeMode.system);
+
 /// Coloured shadow under gradient surfaces.
 const Color kGlow = _violet;
 
@@ -192,6 +202,42 @@ class Aurora extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      );
+}
+
+/// The "+" button in the brand gradient with a violet glow.
+class BrandFab extends StatelessWidget {
+  const BrandFab({super.key, required this.onPressed, required this.label});
+
+  final VoidCallback onPressed;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: kBrandGradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: kGlow.withValues(alpha: 0.4),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: onPressed,
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          focusElevation: 0,
+          hoverElevation: 0,
+          highlightElevation: 0,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: const Icon(Icons.add),
+          label: Text(label),
         ),
       );
 }

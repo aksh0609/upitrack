@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../data/repository.dart';
@@ -8,8 +9,9 @@ import '../theme.dart';
 import '../util/format.dart';
 import 'merchant_screen.dart';
 
-/// Subscriptions, bills, rent and SIPs: payments that came back every
-/// month in the last six months, soonest due first.
+/// Subscriptions, bills, rent and SIPs: the ones the user added, and
+/// payments that came back every month in the last six months, soonest due
+/// first. Added ones are reminded about like found ones.
 class SubscriptionsScreen extends StatefulWidget {
   const SubscriptionsScreen({super.key, required this.repository});
 
@@ -21,6 +23,7 @@ class SubscriptionsScreen extends StatefulWidget {
 
 class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   List<Recurring>? _found;
+  List<Bill> _bills = const [];
 
   @override
   void initState() {
@@ -33,10 +36,31 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     final txns = await widget.repository.between(
         DateTime(now.year, now.month - 6, now.day),
         DateTime(now.year, now.month, now.day + 1));
-    if (mounted) setState(() => _found = findRecurring(txns));
+    final bills = await widget.repository.bills();
+    if (mounted) {
+      setState(() {
+        _bills = bills;
+        _found = regularPayments(txns, bills);
+      });
+    }
+  }
+
+  /// Add one, or change or remove [old].
+  Future<void> _edit([Bill? old]) async {
+    final bill = await showDialog<Bill>(
+        context: context, builder: (_) => _BillDialog(old: old));
+    if (bill == null) return;
+    if (old != null && old.name != bill.name) {
+      await widget.repository.setBill(old.name, 0, 0);
+    }
+    await widget.repository.setBill(bill.name, bill.amountPaise, bill.day);
+    await _load();
   }
 
   Future<void> _open(Recurring r) async {
+    if (r.added) {
+      return _edit(_bills.firstWhere((b) => b.name == r.name));
+    }
     final now = DateTime.now();
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => MerchantScreen(
@@ -55,18 +79,22 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Scaffold(
       appBar: AppBar(title: const Text('Subscriptions & bills')),
+      floatingActionButton: BrandFab(onPressed: _edit, label: 'Add a payment'),
       body: found == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+              // Room at the bottom for the button.
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
               children: [
                 if (found.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 32),
                     child: Text(
-                      'Nothing repeats yet. A payment that comes back every '
-                      'month at about the same amount, like Netflix, a phone '
-                      'plan, rent or a SIP, shows here after the third time.',
+                      'Nothing yet. Add rent, school fees, an EMI or any bill '
+                      'you pay every month, and get a reminder a day or two '
+                      'before it is due. Payments that come back every month '
+                      'at about the same amount show here on their own after '
+                      'the third time.',
                       textAlign: TextAlign.center,
                       style: text.bodyLarge,
                     ),
@@ -94,9 +122,11 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Found from payments that came back about every month at '
-                    'about the same amount. "Next" is a guess from the usual '
-                    'gap.',
+                    'You get a reminder a day or two before each one is due '
+                    '(Android). Tap one you added to change it. The others '
+                    'were found from payments that came back about every '
+                    'month at about the same amount, and "Next" is a guess '
+                    'from the usual gap.',
                     style: text.bodySmall?.copyWith(color: muted),
                   ),
                 ],
@@ -126,10 +156,108 @@ class RecurringTile extends StatelessWidget {
         child: Icon(cat.icon, color: cat.color, size: 20),
       ),
       title: Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text('Next ${DateFormat('d MMM').format(r.next)} · $due'),
+      subtitle: Text('${r.added ? 'Monthly ·' : 'Next'} '
+          '${DateFormat('d MMM').format(r.next)} · $due'),
       trailing: Text(formatPaise(r.amountPaise),
           style: text.titleMedium
               ?.copyWith(fontWeight: FontWeight.w700, fontFeatures: kTabular)),
     );
   }
+}
+
+/// Name, amount and day of the month; Remove (day 0) when changing one.
+class _BillDialog extends StatefulWidget {
+  const _BillDialog({this.old});
+
+  final Bill? old;
+
+  @override
+  State<_BillDialog> createState() => _BillDialogState();
+}
+
+class _BillDialogState extends State<_BillDialog> {
+  late final _name = TextEditingController(text: widget.old?.name);
+  late final _amount = TextEditingController(
+      text: widget.old == null ? '' : '${widget.old!.amountPaise ~/ 100}');
+  late int _day = widget.old?.day ?? DateTime.now().day;
+  String? _problem;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _amount.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final name = _name.text.trim();
+    final rupees = int.tryParse(_amount.text.trim());
+    if (name.isEmpty) return setState(() => _problem = 'Give it a name.');
+    if (rupees == null || rupees <= 0) {
+      return setState(() => _problem = 'Enter the amount.');
+    }
+    Navigator.pop(context, Bill(name, rupees * 100, _day));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final old = widget.old;
+    return AlertDialog(
+      title: Text(old == null ? 'Add a regular payment' : old.name),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _name,
+            autofocus: old == null,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+                labelText: 'Name', hintText: 'Rent, school fees, EMI…'),
+          ),
+          TextField(
+            controller: _amount,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: const InputDecoration(
+                labelText: 'Amount each month', prefixText: '₹ '),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            initialValue: _day,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Due on, each month'),
+            menuMaxHeight: 320,
+            items: [
+              for (var d = 1; d <= 31; d++)
+                DropdownMenuItem(value: d, child: Text(dayOfMonth(d))),
+            ],
+            onChanged: (d) => setState(() => _day = d!),
+          ),
+          if (_problem != null) ...[
+            const SizedBox(height: 8),
+            Text(_problem!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ],
+        ],
+      ),
+      actions: [
+        if (old != null)
+          TextButton(
+              onPressed: () => Navigator.pop(context, Bill(old.name, 0, 0)),
+              child: const Text('Remove')),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        FilledButton(onPressed: _save, child: const Text('Save')),
+      ],
+    );
+  }
+}
+
+/// "1st", "22nd", "31st (or the last day)".
+String dayOfMonth(int d) {
+  final suffix = d >= 11 && d <= 13
+      ? 'th'
+      : switch (d % 10) { 1 => 'st', 2 => 'nd', 3 => 'rd', _ => 'th' };
+  return '$d$suffix${d > 28 ? ' (or the last day)' : ''}';
 }

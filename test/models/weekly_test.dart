@@ -63,4 +63,15 @@ void main() {
     expect(dueToRemind([r(DateTime(2026, 11, 28))], now, {}), isEmpty);
     expect(dueText(tomorrow, now).title, 'Netflix ₹649 due tomorrow');
   });
+
+  test('a reminder for an added payment says so', () {
+    final r = regularPayments(const [], const [Bill('Rent', 1500000, 27)],
+            now: DateTime(2026, 11, 25))
+        .single;
+    final now = DateTime(2026, 11, 25, 9);
+    expect(dueToRemind([r], now, {}), [r]);
+    final text = dueText(r, now);
+    expect(text.title, 'Rent ₹15,000 due in 2 days');
+    expect(text.body, 'A regular payment you added.');
+  });
 }

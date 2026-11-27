@@ -9,6 +9,7 @@ import 'package:upitrack/models/txn.dart';
 import 'package:upitrack/screens/settings_screen.dart';
 import 'package:upitrack/screens/welcome_screen.dart';
 import 'package:upitrack/sync/sync_controller.dart';
+import 'package:upitrack/theme.dart';
 import 'package:upitrack/widgets/category_bars.dart';
 import 'package:upitrack/widgets/merchant_bars.dart';
 import 'package:upitrack/widgets/txn_tile.dart';
@@ -141,6 +142,26 @@ void main() {
     await tester.pump();
     expect(find.text('Signed in as me@example.com'), findsOneWidget);
     expect(find.text('Sync now'), findsOneWidget);
+    await tester.runAsync(db.close);
+  });
+
+  testWidgets('Settings → Appearance switches the theme and remembers it',
+      (tester) async {
+    sqfliteFfiInit();
+    final db = (await tester.runAsync(() =>
+        AppDb.open(factory: databaseFactoryFfi, path: inMemoryDatabasePath)))!;
+    await tester.pumpWidget(MaterialApp(
+        home: SettingsScreen(
+            repository: TxnRepository(db, SmsSource(), ShortcutInbox()))));
+    await tester.tap(find.text('Dark'));
+    await tester.pump();
+    expect(themeMode.value, ThemeMode.dark);
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+    final saved =
+        await tester.runAsync<String?>(() => db.getMeta(kThemeSetting));
+    expect(themeModeNamed(saved), ThemeMode.dark);
+    themeMode.value = ThemeMode.system;
     await tester.runAsync(db.close);
   });
 }
