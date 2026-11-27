@@ -159,7 +159,7 @@ class _LockScreen extends StatelessWidget {
                       width: 72,
                       height: 72,
                       decoration: BoxDecoration(
-                        gradient: kBrandGradient,
+                        color: context.brand.hero,
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: const Icon(Icons.lock_outline,

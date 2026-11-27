@@ -1,20 +1,43 @@
-import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Seed for the colour scheme: violet.
-const Color kSeed = Color(0xFF7C3AED);
+/// A colour palette from Settings → Appearance: [main] carries the app (the
+/// spending card, the Add button, the logo), [highlight] marks only what
+/// needs attention (Due soon, today's spending).
+class Palette {
+  const Palette(
+      this.id, this.name, this.main, this.highlight, this.light, this.dark);
 
-const Color _blue = Color(0xFF2563EB);
-const Color _violet = Color(0xFF7C3AED);
-const Color _pink = Color(0xFFDB2777);
+  /// Stored in the [kPaletteSetting] setting; never rename.
+  final String id;
+  final String name;
+  final Color main;
+  final Color highlight;
 
-/// The brand gradient: blue → violet → pink. Hero card, FAB, logo mark.
-const LinearGradient kBrandGradient = LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-  colors: [_blue, _violet, _pink],
-);
+  /// Page backgrounds.
+  final Color light;
+  final Color dark;
+}
+
+const List<Palette> kPalettes = [
+  Palette('navy', 'Navy', Color(0xFF16294D), Color(0xFFF2A900),
+      Color(0xFFF4F6FA), Color(0xFF0B1424)),
+  Palette('emerald', 'Emerald', Color(0xFF0B6E4F), Color(0xFFE8A317),
+      Color(0xFFF2F7F4), Color(0xFF08130F)),
+  Palette('charcoal', 'Charcoal', Color(0xFF22272E), Color(0xFF0E9F9A),
+      Color(0xFFF5F5F3), Color(0xFF111316)),
+  Palette('violet', 'Violet', Color(0xFF4C1D95), Color(0xFFF472B6),
+      Color(0xFFF6F4FC), Color(0xFF0E0B1E)),
+];
+
+/// The chosen palette; MaterialApp rebuilds when it changes.
+final ValueNotifier<Palette> palette = ValueNotifier(kPalettes.first);
+
+/// Device setting (TxnRepository.setSetting): a [Palette.id].
+const String kPaletteSetting = 'palette';
+
+Palette paletteNamed(String? id) =>
+    kPalettes.firstWhere((p) => p.id == id, orElse: () => kPalettes.first);
 
 /// Light, dark or the phone's setting (Settings → Appearance). Read from
 /// [kThemeSetting] at launch; MaterialApp rebuilds when it changes.
@@ -26,48 +49,68 @@ const String kThemeSetting = 'theme';
 ThemeMode themeModeNamed(String? name) => ThemeMode.values
     .firstWhere((m) => m.name == name, orElse: () => ThemeMode.system);
 
-/// Coloured shadow under gradient surfaces.
-const Color kGlow = _violet;
-
 /// Same-width digits so amounts line up in lists and don't jitter.
 const List<FontFeature> kTabular = [FontFeature.tabularFigures()];
 
-ThemeData buildTheme(Brightness brightness) {
+/// The palette's colours where the colour scheme has no slot for them.
+class Brand extends ThemeExtension<Brand> {
+  const Brand({required this.hero, required this.highlight});
+
+  /// The deep main colour, in both modes, under white text.
+  final Color hero;
+  final Color highlight;
+
+  @override
+  Brand copyWith({Color? hero, Color? highlight}) =>
+      Brand(hero: hero ?? this.hero, highlight: highlight ?? this.highlight);
+
+  @override
+  Brand lerp(Brand? other, double t) => other == null
+      ? this
+      : Brand(
+          hero: Color.lerp(hero, other.hero, t)!,
+          highlight: Color.lerp(highlight, other.highlight, t)!);
+}
+
+extension BrandOf on BuildContext {
+  /// The default palette's when the theme has none (a bare MaterialApp).
+  Brand get brand =>
+      Theme.of(this).extension<Brand>() ??
+      Brand(hero: kPalettes.first.main, highlight: kPalettes.first.highlight);
+}
+
+ThemeData buildTheme(Brightness brightness, [Palette? chosen]) {
+  final p = chosen ?? kPalettes.first;
   final dark = brightness == Brightness.dark;
-  var scheme = ColorScheme.fromSeed(seedColor: kSeed, brightness: brightness);
-  if (dark) {
-    // Deep navy instead of near-black, so sheets and dialogs match [Aurora].
-    scheme = scheme.copyWith(
-      surface: const Color(0xFF0C0E20),
-      surfaceContainerLowest: const Color(0xFF080A18),
-      surfaceContainerLow: const Color(0xFF12142B),
-      surfaceContainer: const Color(0xFF171A35),
-      surfaceContainerHigh: const Color(0xFF1D2040),
-      surfaceContainerHighest: const Color(0xFF24284C),
-    );
-  }
-  // Frosted panels: translucent so the background glows through.
-  final glass = dark
-      ? Colors.white.withValues(alpha: 0.06)
-      : Colors.white.withValues(alpha: 0.75);
+  final bg = dark ? p.dark : p.light;
+  Color lift(double t) => Color.lerp(bg, Colors.white, t)!;
+  var scheme = ColorScheme.fromSeed(seedColor: p.main, brightness: brightness);
+  scheme = dark
+      ? scheme.copyWith(
+          surface: bg,
+          surfaceContainerLowest: bg,
+          surfaceContainerLow: lift(0.03),
+          surfaceContainer: lift(0.05),
+          surfaceContainerHigh: lift(0.08),
+          surfaceContainerHighest: lift(0.11),
+        )
+      : scheme.copyWith(primary: p.main, onPrimary: Colors.white);
+  final card = dark ? scheme.surfaceContainer : Colors.white;
   final hairline = dark
-      ? Colors.white.withValues(alpha: 0.10)
-      : scheme.outlineVariant.withValues(alpha: 0.6);
+      ? Colors.white.withValues(alpha: 0.08)
+      : scheme.outlineVariant.withValues(alpha: 0.5);
   final base = ThemeData(
       colorScheme: scheme, useMaterial3: true, fontFamily: 'PlusJakartaSans');
   final text = base.textTheme;
-  final page = _AuroraTransitions(const FadeForwardsPageTransitionsBuilder());
-  final iosPage = _AuroraTransitions(const CupertinoPageTransitionsBuilder());
 
   return base.copyWith(
-    // Every page paints [Aurora] itself, via the page transitions below.
-    scaffoldBackgroundColor: Colors.transparent,
-    pageTransitionsTheme: PageTransitionsTheme(builders: {
-      for (final p in TargetPlatform.values)
-        p: p == TargetPlatform.iOS || p == TargetPlatform.macOS
-            ? iosPage
-            : page,
-    }),
+    scaffoldBackgroundColor: bg,
+    // Lifted a little in dark mode so the button and logo stand off the page.
+    extensions: [
+      Brand(
+          hero: dark ? Color.lerp(p.main, Colors.white, 0.16)! : p.main,
+          highlight: p.highlight)
+    ],
     textTheme: text.copyWith(
       displaySmall: text.displaySmall
           ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -1),
@@ -75,7 +118,7 @@ ThemeData buildTheme(Brightness brightness) {
       titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: Colors.transparent,
+      backgroundColor: bg,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
@@ -88,23 +131,25 @@ ThemeData buildTheme(Brightness brightness) {
     ),
     cardTheme: CardThemeData(
       elevation: 0,
-      color: glass,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: hairline),
-      ),
+      color: card,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       margin: EdgeInsets.zero,
     ),
+    drawerTheme: DrawerThemeData(
+      backgroundColor: dark ? scheme.surfaceContainerLow : Colors.white,
+      surfaceTintColor: Colors.transparent,
+    ),
     chipTheme: base.chipTheme.copyWith(
-      backgroundColor: glass,
+      backgroundColor: card,
       selectedColor: scheme.primaryContainer,
       side: BorderSide(color: hairline),
       showCheckmark: false,
       labelStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: scheme.surface.withValues(alpha: dark ? 0.85 : 0.9),
+      backgroundColor: card,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       height: 68,
@@ -119,17 +164,17 @@ ThemeData buildTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: glass,
+      fillColor: card,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: hairline),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: hairline),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: scheme.primary, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -153,60 +198,7 @@ extension MoneyColors on ColorScheme {
       : const Color(0xFF1B7A3A);
 }
 
-/// The app background: a deep navy (or soft lavender, in light mode) wash
-/// with blue, pink and violet glows. Static, so it costs one paint per page.
-class Aurora extends StatelessWidget {
-  const Aurora({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final a = dark ? 0.40 : 0.20;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: dark
-              ? const [Color(0xFF080A18), Color(0xFF0E0B1E)]
-              : const [Color(0xFFF7F7FD), Color(0xFFFCF4F9)],
-        ),
-      ),
-      child: Stack(
-        children: [
-          RepaintBoundary(
-            child: Stack(children: [
-              _glow(const Alignment(-1.2, -1.1), _blue, a, 1.1),
-              _glow(const Alignment(1.3, -0.5), _pink, a * 0.7, 0.9),
-              _glow(const Alignment(-0.2, 1.3), _violet, a * 0.6, 1.0),
-            ]),
-          ),
-          Positioned.fill(child: child),
-        ],
-      ),
-    );
-  }
-
-  static Widget _glow(Alignment at, Color color, double alpha, double radius) =>
-      Positioned.fill(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: at,
-              radius: radius,
-              colors: [
-                color.withValues(alpha: alpha),
-                color.withValues(alpha: 0)
-              ],
-            ),
-          ),
-        ),
-      );
-}
-
-/// The "+" button in the brand gradient with a violet glow.
+/// The "+" button in the palette's main colour.
 class BrandFab extends StatelessWidget {
   const BrandFab({super.key, required this.onPressed, required this.label});
 
@@ -214,48 +206,13 @@ class BrandFab extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: kBrandGradient,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: kGlow.withValues(alpha: 0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: onPressed,
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          focusElevation: 0,
-          hoverElevation: 0,
-          highlightElevation: 0,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          icon: const Icon(Icons.add),
-          label: Text(label),
-        ),
+  Widget build(BuildContext context) => FloatingActionButton.extended(
+        onPressed: onPressed,
+        backgroundColor: context.brand.hero,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        icon: const Icon(Icons.add),
+        label: Text(label),
       );
-}
-
-/// Wraps each page in [Aurora], then runs the platform's own transition.
-class _AuroraTransitions extends PageTransitionsBuilder {
-  const _AuroraTransitions(this.inner);
-
-  final PageTransitionsBuilder inner;
-
-  @override
-  Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) =>
-      inner.buildTransitions(
-          route, context, animation, secondaryAnimation, Aurora(child: child));
 }

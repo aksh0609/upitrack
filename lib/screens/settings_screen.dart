@@ -98,6 +98,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ),
+          const SizedBox(height: 16),
+          ValueListenableBuilder(
+            valueListenable: palette,
+            builder: (context, chosen, _) => Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final p in kPalettes)
+                  _Swatch(
+                    p: p,
+                    selected: p.id == chosen.id,
+                    onTap: () {
+                      palette.value = p;
+                      widget.repository.setSetting(kPaletteSetting, p.id);
+                    },
+                  ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           if (appLockAvailable && _lock != null) ...[
             Text('Privacy', style: title),
@@ -128,6 +147,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
           if (sync != null) _SyncSection(sync: sync),
         ],
+      ),
+    );
+  }
+}
+
+/// A palette to pick: its main colour with the highlight beside it.
+class _Swatch extends StatelessWidget {
+  const _Swatch({required this.p, required this.selected, required this.onTap});
+
+  final Palette p;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${p.name} colours',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Column(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: selected ? scheme.onSurface : Colors.transparent,
+                      width: 2),
+                ),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [p.main, p.main, p.highlight, p.highlight],
+                      stops: const [0, 0.6, 0.6, 1],
+                    ),
+                  ),
+                  child: selected
+                      ? const Icon(Icons.check, color: Colors.white, size: 20)
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(p.name,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: selected ? FontWeight.w700 : null)),
+            ],
+          ),
+        ),
       ),
     );
   }
