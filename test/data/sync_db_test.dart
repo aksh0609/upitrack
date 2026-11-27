@@ -160,6 +160,21 @@ void main() {
         reason: 'idempotent');
   });
 
+  test('added regular payments sync both ways; a removal wins when newer',
+      () async {
+    await a.setBill('Rent', 1500000, 5);
+    expect(await b.applySnapshot(await a.snapshot()), isTrue);
+    expect([for (final x in await b.bills()) (x.name, x.amountPaise, x.day)],
+        [('Rent', 1500000, 5)]);
+
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await b.setBill('Rent', 0, 0);
+    await a.applySnapshot(await b.snapshot());
+    expect(await a.bills(), isEmpty);
+    expect(await a.applySnapshot(await b.snapshot()), isFalse,
+        reason: 'idempotent');
+  });
+
   test('a snapshot from an older app, without budgets, still applies',
       () async {
     await a.setBudget('Food', 500000);

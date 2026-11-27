@@ -94,5 +94,7 @@ String dueKey(Recurring r) => '${r.name}|${ymd(r.next)}';
 ({String title, String body}) dueText(Recurring r, DateTime now) => (
       title:
           '${r.name} ${formatPaise(r.amountPaise)} due ${dueLabel(r.next, now: now)}',
-      body: 'It came every month for the last ${r.count} months.',
+      body: r.added
+          ? 'A regular payment you added.'
+          : 'It came every month for the last ${r.count} months.',
     );

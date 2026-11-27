@@ -20,7 +20,7 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - Filter chips: All / Merchants / People / Gift cards, with "UPI only" inside each; manual entry for cash
 - Duplicates are skipped: the same payment from SMS and a statement is counted once (matched by UPI reference, or by same day, amount and direction)
 - Ignores OTPs, collect requests, reminders, failed payments, promotions, and SMS from personal phone numbers
-- Light and dark mode
+- Light and dark mode: follows the phone, or pick Light or Dark in Settings → Appearance
 - **Didn't catch this?** A bank SMS the app can't read is kept in a "Not recognised" list: add it by hand, ignore it, or report an anonymised copy so the next version understands it
 - **Instant notifications (Android):** "-₹250 to SWIGGY · Food" the moment the bank SMS arrives, even with the app closed
 - Hidden payments can be restored from menu → Hidden
@@ -33,7 +33,7 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - **Web app:** [aksh0609.github.io/upitrack](https://aksh0609.github.io/upitrack/) shows the same synced data in a browser and imports statements; nothing to install
 - **Budgets:** a monthly limit overall and per category (menu → Budgets). The Overview shows what is left, amber from 80% and red once over; on Android the payment notification adds "85% of budget used"
 - **Trends tab:** this month against last (day for day while the month runs), by category; twelve months of spending (tap a bar to open that month); and a calendar shaded by what went out each day
-- **Subscriptions & bills:** payments that come back every month at about the same amount (Netflix, a phone plan, rent, a SIP) are found on their own, with the monthly total and when each is next due; the Overview lists the coming week's
+- **Subscriptions & bills:** payments that come back every month at about the same amount (Netflix, a phone plan, rent, a SIP) are found on their own, with the monthly total and when each is next due; the Overview lists the coming week's. Add your own too (*Add a payment*: rent ₹15,000 on the 5th, school fees, an EMI) and they are reminded about the same way, and synced
 - **Lent & borrowed:** give a payment to or from a person the category *Lent & borrowed* and it leaves spending; menu → Lent & borrowed keeps a balance per person ("Rahul owes you ₹1,500") with a reminder to share
 - **Notes:** add a line to any payment ("office lunch, claim later"); search finds it
 - **Export:** a month or a year as CSV (for spreadsheets) or PDF, through the share sheet

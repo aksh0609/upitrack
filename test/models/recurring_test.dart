@@ -75,4 +75,34 @@ void main() {
     expect(dueLabel(DateTime(2026, 11, 26), now: now), 'tomorrow');
     expect(dueLabel(DateTime(2026, 11, 23), now: now), 'due now');
   });
+
+  test('added payments fall due on their day; the found twin is dropped', () {
+    final all = regularPayments([
+      pay('NETFLIX', 649, DateTime(2026, 8, 28)),
+      pay('NETFLIX', 649, DateTime(2026, 9, 28)),
+      pay('NETFLIX', 649, DateTime(2026, 10, 28)),
+    ], const [
+      Bill('Rent', 1500000, 5), // the 5th has passed: next month
+      Bill('School fees', 400000, 27), // later this month
+      Bill('Netflix', 64900, 31), // 31 Nov doesn't exist: the 30th
+    ], now: now);
+    expect([
+      for (final r in all) (r.name, r.next)
+    ], [
+      ('School fees', DateTime(2026, 11, 27)),
+      ('Netflix', DateTime(2026, 11, 30)),
+      ('Rent', DateTime(2026, 12, 5)),
+    ]);
+    expect(all.every((r) => r.added), isTrue);
+    expect(
+        comingUp(all, now: now).map((r) => r.name), ['School fees', 'Netflix']);
+  });
+
+  test('an added payment due today is still this month', () {
+    final r = regularPayments(const [], const [Bill('EMI', 1000000, 25)],
+            now: DateTime(2026, 11, 25, 18))
+        .single;
+    expect(r.next, DateTime(2026, 11, 25));
+    expect(dueLabel(r.next, now: DateTime(2026, 11, 25, 18)), 'today');
+  });
 }

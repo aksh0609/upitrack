@@ -93,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<AccountRef> _accounts = const [];
   AccountRef? _account;
   Map<String, int> _budgets = const {};
+  List<Bill> _bills = const [];
 
   /// Open balances with people, all time.
   List<LentBalance> _lent = const [];
@@ -243,7 +244,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_access == _Access.granted &&
         !await widget.repository.flag(kRemindersOff)) {
       // Best effort, like the background route.
-      unawaited(runReminders(widget.repository.between).catchError((_) {}));
+      unawaited(runReminders(widget.repository.between, widget.repository.bills)
+          .catchError((_) {}));
     }
     unawaited(_checkUpdate(force: true));
     await widget.syncController?.syncNow();
@@ -257,12 +259,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final unparsed = await widget.repository.unparsed();
     final accounts = await widget.repository.accounts();
     final budgets = await widget.repository.budgets();
+    final bills = await widget.repository.bills();
     final lent = lentBalances(await widget.repository.lent());
     if (mounted) {
       setState(() {
         _txns = txns;
         _history = history;
         _budgets = budgets;
+        _bills = bills;
         _lent = lent;
         _unparsedCount = unparsed.length;
         _accounts = accounts;
@@ -562,32 +566,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      floatingActionButton: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: kBrandGradient,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: kGlow.withValues(alpha: 0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: _addManual,
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          focusElevation: 0,
-          hoverElevation: 0,
-          highlightElevation: 0,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          icon: const Icon(Icons.add),
-          label: const Text('Add'),
-        ),
-      ),
+      floatingActionButton: BrandFab(onPressed: _addManual, label: 'Add'),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
@@ -706,7 +685,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Widget> _overview(
       BuildContext context, MonthSummary summary, List<Txn> visible) {
     final soon = _isCurrentMonth
-        ? comingUp(findRecurring(_history))
+        ? comingUp(regularPayments(_history, _bills))
         : const <Recurring>[];
     return [
       Appear(

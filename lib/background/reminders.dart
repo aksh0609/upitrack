@@ -17,6 +17,7 @@ const String kRemindersOff = 'reminders_off';
 /// not in the database yet, so a summary sent then can come out low.
 Future<void> runReminders(
     Future<List<Txn>> Function(DateTime from, DateTime to) between,
+    Future<List<Bill>> Function() bills,
     {DateTime? now}) async {
   if (!NativeBridge.available) return;
   final today = now ?? DateTime.now();
@@ -35,7 +36,11 @@ Future<void> runReminders(
       .split('\n')
       .where((s) => s.isNotEmpty)
       .toList();
-  final due = dueToRemind(findRecurring(txns, now: today), today, sent.toSet());
+  // An older database (background, before the app's first launch after an
+  // update) has no bills table yet: remind about the found ones.
+  final mine = await bills().catchError((Object _) => const <Bill>[]);
+  final due =
+      dueToRemind(regularPayments(txns, mine, now: today), today, sent.toSet());
   if (due.isEmpty) return;
   for (final r in due) {
     await _show(7001 + r.name.hashCode % 1000, dueText(r, today));

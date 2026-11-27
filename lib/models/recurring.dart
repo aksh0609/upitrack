@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import '../parser/categorizer.dart';
 import '../parser/merchant.dart';
 import 'txn.dart';
@@ -20,13 +22,59 @@ class Recurring {
   /// The latest payment's amount.
   final int amountPaise;
   final String category;
-  final DateTime last;
+
+  /// The latest payment; null for one the user added.
+  final DateTime? last;
 
   /// When the next one is expected: the last plus the usual gap.
   final DateTime next;
 
-  /// How many monthly payments were seen.
+  /// How many monthly payments were seen; 0 for one the user added.
   final int count;
+
+  bool get added => count == 0;
+}
+
+/// A regular payment the user added: [amountPaise] on [day] (1–31) of every
+/// month. Kept in the database by [name].
+class Bill {
+  const Bill(this.name, this.amountPaise, this.day);
+
+  final String name;
+  final int amountPaise;
+  final int day;
+}
+
+/// The user's [bills], each due next on its day (the month's last day when
+/// the month is shorter), today or later; then the repeats [findRecurring]
+/// sees in [txns], except those named like a bill. Soonest first.
+/// ponytail: an added bill doesn't know it was paid early, so "Coming up"
+/// shows it until its day passes; match it to a payment if that grates.
+List<Recurring> regularPayments(List<Txn> txns, List<Bill> bills,
+    {DateTime? now}) {
+  final today = now ?? DateTime.now();
+  final day0 = DateTime(today.year, today.month, today.day);
+  DateTime on(int month, int day) => DateTime(
+      day0.year, month, min(day, DateTime(day0.year, month + 1, 0).day));
+  final mine = [
+    for (final b in bills)
+      Recurring(
+        name: b.name,
+        amountPaise: b.amountPaise,
+        category: 'Bills & Recharge',
+        last: null,
+        next: on(day0.month, b.day).isBefore(day0)
+            ? on(day0.month + 1, b.day)
+            : on(day0.month, b.day),
+        count: 0,
+      ),
+  ];
+  final names = {for (final b in bills) b.name.toLowerCase()};
+  return [
+    ...mine,
+    for (final r in findRecurring(txns, now: today))
+      if (!names.contains(r.name.toLowerCase())) r,
+  ]..sort((a, b) => a.next.compareTo(b.next));
 }
 
 /// Monthly repeats among [txns]: three or more payments to one merchant

@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../models/account.dart';
 import '../models/budget.dart';
+import '../models/recurring.dart' show Bill;
 import '../models/txn.dart';
 import '../models/unparsed.dart';
 import '../parser/categorizer.dart';
@@ -24,7 +25,7 @@ class AppDb {
     final db = await f.openDatabase(
       path ?? p.join(await f.getDatabasesPath(), 'upitrack.db'),
       options: OpenDatabaseOptions(
-        version: 7,
+        version: 8,
         onCreate: (db, version) async {
           await db.execute('''
           CREATE TABLE txns(
@@ -55,6 +56,7 @@ class AppDb {
           await _createUnparsed(db);
           await _createBudgets(db);
           await _createNotes(db);
+          await _createBills(db);
         },
         onUpgrade: (db, from, to) async {
           if (from < 2) await _createUnparsed(db);
@@ -62,6 +64,7 @@ class AppDb {
           if (from < 5) await _reguessOthers(db);
           if (from < 6) await _createBudgets(db);
           if (from < 7) await _createNotes(db);
+          if (from < 8) await _createBills(db);
         },
       ),
     );
@@ -89,6 +92,11 @@ class AppDb {
   /// cleared note stays as '' so the clearing syncs.
   static Future<void> _createNotes(Database db) => db.execute(
       'CREATE TABLE IF NOT EXISTS notes(key TEXT PRIMARY KEY, note TEXT NOT NULL, ts INTEGER NOT NULL)');
+
+  /// v8: regular payments the user added, by name. A removed one stays
+  /// with day 0 so the removal syncs; `ts` decides merges.
+  static Future<void> _createBills(Database db) => db.execute(
+      'CREATE TABLE IF NOT EXISTS bills(name TEXT PRIMARY KEY, paise INTEGER NOT NULL, day INTEGER NOT NULL, ts INTEGER NOT NULL)');
 
   /// v3 (spec §4.3): `edit_ts` on txns and `ts` on rules. Existing rows
   /// whose category differs from the automatic guess were set by hand, so
@@ -340,6 +348,23 @@ class AppDb {
         await _markDirty(txn);
       });
 
+  // --------------------------------------------------------------- bills
+
+  /// Regular payments the user added, by name.
+  Future<List<Bill>> bills() async => [
+        for (final r in await _db.query('bills', where: 'day > 0'))
+          Bill(r['name'] as String, r['paise'] as int, r['day'] as int)
+      ];
+
+  /// [day] 0 removes it.
+  Future<void> setBill(String name, int paise, int day) =>
+      _db.transaction((txn) async {
+        await txn.insert(
+            'bills', {'name': name, 'paise': paise, 'day': day, 'ts': _now},
+            conflictAlgorithm: ConflictAlgorithm.replace);
+        await _markDirty(txn);
+      });
+
   // -------------------------------------------------------------- sync
 
   /// This device's whole table for upload (spec §4.4): every row including
@@ -356,6 +381,9 @@ class AppDb {
       ],
       notes: [
         for (final r in await _db.query('notes')) Map<String, Object?>.from(r)
+      ],
+      bills: [
+        for (final r in await _db.query('bills')) Map<String, Object?>.from(r)
       ],
     );
   }
@@ -429,6 +457,10 @@ class AppDb {
       }
       if (await _mergeNewest(
           txn, 'notes', ['key', 'note', 'ts'], snapshot['notes'] as List?)) {
+        changed = true;
+      }
+      if (await _mergeNewest(txn, 'bills', ['name', 'paise', 'day', 'ts'],
+          snapshot['bills'] as List?)) {
         changed = true;
       }
       if (changed) await _markDirty(txn);

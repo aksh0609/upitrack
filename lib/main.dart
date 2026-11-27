@@ -39,6 +39,7 @@ Future<void> main() async {
   // Browser: SQLite compiled to WebAssembly, persisted in IndexedDB (spec §4.8).
   if (kIsWeb) databaseFactory = databaseFactoryFfiWeb;
   final db = await AppDb.open();
+  themeMode.value = themeModeNamed(await db.getMeta(kThemeSetting));
   final auth = GoogleAuth();
   final sync = SyncController(
     db,
@@ -81,21 +82,25 @@ class UpiTrackApp extends StatelessWidget {
       syncController: syncController,
     );
     final sync = syncController;
-    return MaterialApp(
-      title: 'UPI Track',
-      debugShowCheckedModeBanner: false,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
-      // Above the Navigator, so the lock covers every screen.
-      builder: (context, child) => appLockAvailable
-          ? AppLockGate(
-              enabled: () => repository.flag(kAppLockFlag), child: child!)
-          : child!,
-      // Inside the Navigator (unlike the lock), so the welcome screen's
-      // text fields and dialogs work.
-      home: sync != null && kSignInConfigured
-          ? SignInGate(sync: sync, child: home)
-          : home,
+    return ValueListenableBuilder(
+      valueListenable: themeMode,
+      builder: (context, mode, _) => MaterialApp(
+        title: 'UPI Track',
+        debugShowCheckedModeBanner: false,
+        theme: buildTheme(Brightness.light),
+        darkTheme: buildTheme(Brightness.dark),
+        themeMode: mode,
+        // Above the Navigator, so the lock covers every screen.
+        builder: (context, child) => appLockAvailable
+            ? AppLockGate(
+                enabled: () => repository.flag(kAppLockFlag), child: child!)
+            : child!,
+        // Inside the Navigator (unlike the lock), so the welcome screen's
+        // text fields and dialogs work.
+        home: sync != null && kSignInConfigured
+            ? SignInGate(sync: sync, child: home)
+            : home,
+      ),
     );
   }
 }
