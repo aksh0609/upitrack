@@ -362,6 +362,8 @@ class TxnRepository {
   Future<void> setFlag(String key, bool on) => _db.setMeta(key, on ? '1' : '0');
 
   /// A text setting of this device (not synced).
+  Future<String?> setting(String key) => _db.getMeta(key);
+
   Future<void> setSetting(String key, String value) => _db.setMeta(key, value);
 
   /// Every payment marked [Categorizer.lent], all time, newest first.

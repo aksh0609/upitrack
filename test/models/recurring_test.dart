@@ -33,16 +33,48 @@ void main() {
     expect(comingUp(found, now: now), hasLength(1));
   });
 
-  test('a small change in price still counts; a big one breaks it', () {
+  test('a bill may change from month to month; anything else stays within 10%',
+      () {
     final found = findRecurring([
       pay('JIO', 299, DateTime(2026, 8, 20)),
       pay('JIO', 299, DateTime(2026, 9, 19)),
       pay('JIO', 319, DateTime(2026, 10, 19)),
-      pay('BESCOM', 900, DateTime(2026, 8, 5)),
-      pay('BESCOM', 1500, DateTime(2026, 9, 5)),
-      pay('BESCOM', 2100, DateTime(2026, 10, 5)),
+      pay('BESCOM', 900, DateTime(2026, 9, 5)),
+      pay('BESCOM', 1500, DateTime(2026, 10, 5)),
+      pay('BESCOM', 2100, DateTime(2026, 11, 5)),
+      for (final (m, rupees) in [(8, 900), (9, 1500), (10, 2100)])
+        pay('MYNTRA', rupees, DateTime(2026, m, 12), category: 'Shopping'),
     ], now: now);
-    expect(found.map((r) => r.name), ['Jio']);
+    expect([
+      for (final r in found) (r.name, r.amountPaise, r.varies)
+    ], [
+      ('Jio', 31900, false),
+      ('BESCOM', 210000, true),
+    ]);
+    expect(found.last.next, DateTime(2026, 12, 5));
+  });
+
+  test('two months of the same amount are enough; of different ones, not', () {
+    final found = findRecurring([
+      pay('RAHUL SHARMA', 15000, DateTime(2026, 10, 5), category: 'Transfers'),
+      pay('RAHUL SHARMA', 15000, DateTime(2026, 11, 5), category: 'Transfers'),
+      pay('PRIYA', 500, DateTime(2026, 10, 10), category: 'Transfers'),
+      pay('PRIYA', 800, DateTime(2026, 11, 10), category: 'Transfers'),
+    ], now: now);
+    final rent = found.single;
+    expect((rent.name, rent.count, rent.next),
+        ('RAHUL SHARMA', 2, DateTime(2026, 12, 5)));
+  });
+
+  test('a one-off top-up after the monthly plan does not hide it', () {
+    final r = findRecurring([
+      pay('AIRTEL', 299, DateTime(2026, 9, 3)),
+      pay('AIRTEL', 299, DateTime(2026, 10, 3)),
+      pay('AIRTEL', 299, DateTime(2026, 11, 3)),
+      pay('AIRTEL', 49, DateTime(2026, 11, 10)),
+    ], now: now)
+        .single;
+    expect((r.amountPaise, r.count, r.next), (29900, 3, DateTime(2026, 12, 3)));
   });
 
   test('not a bill: frequent same-sized payments, too few, or stopped', () {
