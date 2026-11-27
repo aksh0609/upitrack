@@ -145,7 +145,7 @@ void main() {
     await tester.runAsync(db.close);
   });
 
-  testWidgets('Settings → Appearance switches the theme and remembers it',
+  testWidgets('Settings → Appearance switches theme and colours, and remembers',
       (tester) async {
     sqfliteFfiInit();
     final db = (await tester.runAsync(() =>
@@ -161,6 +161,15 @@ void main() {
     final saved =
         await tester.runAsync<String?>(() => db.getMeta(kThemeSetting));
     expect(themeModeNamed(saved), ThemeMode.dark);
+    await tester.tap(find.text('Emerald'));
+    await tester.pump();
+    expect(palette.value.id, 'emerald');
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+    final savedPalette =
+        await tester.runAsync<String?>(() => db.getMeta(kPaletteSetting));
+    expect(paletteNamed(savedPalette).id, 'emerald');
+    palette.value = kPalettes.first;
     themeMode.value = ThemeMode.system;
     await tester.runAsync(db.close);
   });

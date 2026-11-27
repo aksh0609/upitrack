@@ -65,7 +65,7 @@ class WelcomeScreen extends StatelessWidget {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      gradient: kBrandGradient,
+                      color: context.brand.hero,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Icon(Icons.currency_rupee,

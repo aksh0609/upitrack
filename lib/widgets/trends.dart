@@ -188,8 +188,8 @@ class YearBars extends StatelessWidget {
                                     : (_height * v).clamp(2, _height),
                                 decoration: BoxDecoration(
                                   color: r.month == month
-                                      ? kGlow
-                                      : kGlow.withValues(alpha: 0.3),
+                                      ? scheme.primary
+                                      : scheme.primary.withValues(alpha: 0.3),
                                   borderRadius: const BorderRadius.vertical(
                                       top: Radius.circular(4)),
                                 ),
@@ -246,7 +246,7 @@ class SpendCalendar extends StatelessWidget {
 
     Color fill(int level) => level == 0
         ? scheme.onSurface.withValues(alpha: 0.05)
-        : kGlow.withValues(alpha: _alpha[level]);
+        : scheme.primary.withValues(alpha: _alpha[level]);
 
     Widget cell(int day) {
       final date = DateTime(month.year, month.month, day);
@@ -268,7 +268,7 @@ class SpendCalendar extends StatelessWidget {
                 color: future
                     ? muted.withValues(alpha: 0.5)
                     : level >= 3
-                        ? Colors.white
+                        ? scheme.onPrimary
                         : scheme.onSurface,
                 fontFeatures: kTabular,
               )),

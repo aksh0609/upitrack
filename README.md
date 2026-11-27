@@ -20,7 +20,7 @@ Every UPI payment makes your bank send an SMS. UPI Track turns those bank SMS in
 - Filter chips: All / Merchants / People / Gift cards, with "UPI only" inside each; manual entry for cash
 - Duplicates are skipped: the same payment from SMS and a statement is counted once (matched by UPI reference, or by same day, amount and direction)
 - Ignores OTPs, collect requests, reminders, failed payments, promotions, and SMS from personal phone numbers
-- Light and dark mode: follows the phone, or pick Light or Dark in Settings → Appearance
+- **Look:** light and dark mode (follows the phone, or pick one) and four colour palettes, Navy, Emerald, Charcoal and Violet, in Settings → Appearance. The three-line menu at the top left opens Budgets, Subscriptions & bills, Lent & borrowed, Import, Export, Hidden payments and Settings
 - **Didn't catch this?** A bank SMS the app can't read is kept in a "Not recognised" list: add it by hand, ignore it, or report an anonymised copy so the next version understands it
 - **Instant notifications (Android):** "-₹250 to SWIGGY · Food" the moment the bank SMS arrives, even with the app closed
 - Hidden payments can be restored from menu → Hidden

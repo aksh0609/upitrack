@@ -158,4 +158,26 @@ void main() {
     }
     expect(find.text('Due soon'), findsNothing);
   });
+
+  testWidgets('The three-line menu opens the other screens', (tester) async {
+    final db = await openSampleDb(tester);
+    await pumpHome(tester, db);
+    expect(find.byTooltip('More'), findsNothing);
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    for (final item in [
+      'Budgets',
+      'Subscriptions & bills',
+      'Lent & borrowed',
+      'Import file',
+      'Export',
+      'Hidden payments',
+      'Settings',
+    ]) {
+      expect(find.text(item), findsOneWidget, reason: item);
+    }
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Appearance'), findsOneWidget);
+  });
 }

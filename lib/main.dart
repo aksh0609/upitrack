@@ -40,6 +40,7 @@ Future<void> main() async {
   if (kIsWeb) databaseFactory = databaseFactoryFfiWeb;
   final db = await AppDb.open();
   themeMode.value = themeModeNamed(await db.getMeta(kThemeSetting));
+  palette.value = paletteNamed(await db.getMeta(kPaletteSetting));
   final auth = GoogleAuth();
   final sync = SyncController(
     db,
@@ -82,14 +83,14 @@ class UpiTrackApp extends StatelessWidget {
       syncController: syncController,
     );
     final sync = syncController;
-    return ValueListenableBuilder(
-      valueListenable: themeMode,
-      builder: (context, mode, _) => MaterialApp(
+    return ListenableBuilder(
+      listenable: Listenable.merge([themeMode, palette]),
+      builder: (context, _) => MaterialApp(
         title: 'UPI Track',
         debugShowCheckedModeBanner: false,
-        theme: buildTheme(Brightness.light),
-        darkTheme: buildTheme(Brightness.dark),
-        themeMode: mode,
+        theme: buildTheme(Brightness.light, palette.value),
+        darkTheme: buildTheme(Brightness.dark, palette.value),
+        themeMode: themeMode.value,
         // Above the Navigator, so the lock covers every screen.
         builder: (context, child) => appLockAvailable
             ? AppLockGate(

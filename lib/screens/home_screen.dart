@@ -507,88 +507,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               icon: const Icon(Icons.refresh),
               onPressed: _sync,
             ),
-          PopupMenuButton<String>(
-            tooltip: 'More',
-            onSelected: (v) {
-              if (v == 'import') _importStatement();
-              if (v == 'export') {
-                showExportSheet(context, widget.repository, _month);
-              }
-              if (v == 'iphone') _openIphoneSetup();
-              if (v == 'hidden') _openHidden();
-              if (v == 'budgets') _openBudgets();
-              if (v == 'subscriptions') _openSubscriptions();
-              if (v == 'lent') _openLent();
-              if (v == 'settings') _openSettings();
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'import',
-                child: ListTile(
-                  leading: Icon(Icons.upload_file),
-                  title: Text('Import file'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'export',
-                child: ListTile(
-                  leading: Icon(Icons.ios_share),
-                  title: Text('Export'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'budgets',
-                child: ListTile(
-                  leading: Icon(Icons.savings_outlined),
-                  title: Text('Budgets'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'subscriptions',
-                child: ListTile(
-                  leading: Icon(Icons.event_repeat),
-                  title: Text('Subscriptions & bills'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'lent',
-                child: ListTile(
-                  leading: Icon(Icons.handshake_outlined),
-                  title: Text('Lent & borrowed'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'hidden',
-                child: ListTile(
-                  leading: Icon(Icons.visibility_off_outlined),
-                  title: Text('Hidden'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'settings',
-                child: ListTile(
-                  leading: Icon(Icons.settings_outlined),
-                  title: Text('Settings'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              if (_access == _Access.iphone || _isIphoneWeb)
-                const PopupMenuItem(
-                  value: 'iphone',
-                  child: ListTile(
-                    leading: Icon(Icons.phone_iphone),
-                    title: Text('iPhone auto-tracking'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-            ],
+        ],
+      ),
+      drawer: _MenuDrawer(
+        email: widget.syncController?.email,
+        groups: [
+          (
+            'Planning',
+            [
+              (Icons.savings_outlined, 'Budgets', _openBudgets),
+              (Icons.event_repeat, 'Subscriptions & bills', _openSubscriptions),
+              (Icons.handshake_outlined, 'Lent & borrowed', _openLent),
+            ]
           ),
+          (
+            'Your data',
+            [
+              (Icons.upload_file, 'Import file', _importStatement),
+              (
+                Icons.ios_share,
+                'Export',
+                () => showExportSheet(context, widget.repository, _month)
+              ),
+              (Icons.visibility_off_outlined, 'Hidden payments', _openHidden),
+              if (_access == _Access.iphone || _isIphoneWeb)
+                (Icons.phone_iphone, 'iPhone auto-tracking', _openIphoneSetup),
+            ]
+          ),
+          (null, [(Icons.settings_outlined, 'Settings', _openSettings)]),
         ],
       ),
       floatingActionButton: BrandFab(onPressed: _addManual, label: 'Add'),
@@ -1351,7 +1297,7 @@ class _EmptyState extends StatelessWidget {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              gradient: kBrandGradient,
+              color: context.brand.hero,
               borderRadius: BorderRadius.circular(24),
             ),
             child: const Icon(Icons.receipt_long_outlined,
@@ -1408,6 +1354,67 @@ class _UnparsedCard extends StatelessWidget {
   }
 }
 
+/// The three-line menu: everything beyond the three tabs, in groups.
+class _MenuDrawer extends StatelessWidget {
+  const _MenuDrawer({required this.groups, this.email});
+
+  final List<(String?, List<(IconData, String, VoidCallback)>)> groups;
+  final String? email;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+              child: Row(
+                children: [
+                  const _Brand(),
+                  if (email != null) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(email!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: text.bodySmall?.copyWith(color: muted)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            for (final (title, items) in groups) ...[
+              const Divider(height: 16),
+              if (title != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Text(title,
+                      style: text.labelLarge?.copyWith(color: muted)),
+                ),
+              for (final (icon, label, action) in items)
+                ListTile(
+                  leading: Icon(icon),
+                  title: Text(label),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    action();
+                  },
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// "Due soon": regular payments due in the next couple of days.
 class _DueCard extends StatelessWidget {
   const _DueCard({
@@ -1422,11 +1429,22 @@ class _DueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final highlight = context.brand.highlight;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: scheme.tertiaryContainer,
+      // The palette's highlight is kept for this: what needs you now. A
+      // tint on light pages; an outline on dark ones, where a tint muddies.
+      color: dark
+          ? null
+          : Color.alphaBlend(highlight.withValues(alpha: 0.14), Colors.white),
+      shape: dark
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(
+                  color: highlight.withValues(alpha: 0.7), width: 1.5))
+          : null,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
         child: Column(
@@ -1434,9 +1452,13 @@ class _DueCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.event_available_outlined,
-                    size: 20, color: scheme.onTertiaryContainer),
-                const SizedBox(width: 8),
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: highlight,
+                  child: const Icon(Icons.event_available,
+                      size: 16, color: Colors.black87),
+                ),
+                const SizedBox(width: 10),
                 Text('Due soon', style: text.titleMedium),
               ],
             ),
@@ -1545,14 +1567,14 @@ class _Brand extends StatelessWidget {
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            gradient: kBrandGradient,
+            color: context.brand.hero,
             borderRadius: BorderRadius.circular(10),
           ),
           child:
               const Icon(Icons.currency_rupee, size: 18, color: Colors.white),
         ),
         const SizedBox(width: 10),
-        const Text('UPI Track'),
+        Text('UPI Track', style: Theme.of(context).appBarTheme.titleTextStyle),
       ],
     );
   }
